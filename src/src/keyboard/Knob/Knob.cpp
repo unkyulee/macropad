@@ -1,5 +1,6 @@
 #include "Knob.h"
 #include "app/app.h"
+#include "keyboard/BLE/BLEKeypad.h"
 
 #include <RotaryEncoder.h>
 
@@ -44,4 +45,6 @@ void knob_loop()
     lastPos = pos;
 
     _debug("[knob] position %ld direction %d\n", app.knob, app.knobDelta);
+
+    ble_knob(app.knobDelta);
 }

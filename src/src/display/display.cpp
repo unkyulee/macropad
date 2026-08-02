@@ -10,11 +10,12 @@ static TFT_eSPI tft = TFT_eSPI();
 // layout, landscape 320x240
 #define HEADER_HEIGHT 32
 #define LABEL_X 20
-#define VALUE_X 150
-#define ROW_KEY 70
-#define ROW_STATE 110
-#define ROW_KNOB 150
-#define ROW_HEIGHT 28
+#define VALUE_X 130
+#define ROW_KEY 52
+#define ROW_STATE 88
+#define ROW_KNOB 124
+#define ROW_WIFI 160
+#define ROW_BLE 196
 
 static void display_row(const char *label, int y)
 {
@@ -40,6 +41,8 @@ void display_setup()
     display_row("KEY", ROW_KEY);
     display_row("STATE", ROW_STATE);
     display_row("KNOB", ROW_KNOB);
+    display_row("WIFI", ROW_WIFI);
+    display_row("BLE", ROW_BLE);
 
     // values are drawn over a fixed width block so the previous
     // text is erased without clearing the whole screen
@@ -51,12 +54,12 @@ void display_loop()
 {
     AppStatus &app = status();
 
-    // repaint only when an input actually changed
+    // repaint only when an input or a service reported a change
     if (!app.dirty)
         return;
     app.dirty = false;
 
-    char buffer[32];
+    char buffer[48];
 
     // KEY: matrix index and the character it maps to
     if (app.key < 0)
@@ -78,4 +81,17 @@ void display_loop()
              app.knobDelta > 0 ? "CW" : (app.knobDelta < 0 ? "CCW" : ""));
     tft.setTextColor(TFT_CYAN, TFT_BLACK);
     tft.drawString(buffer, VALUE_X, ROW_KNOB, 4);
+
+    // WIFI: the address to reach the config page on
+    if (app.wifiConnected || app.apMode)
+        snprintf(buffer, sizeof(buffer), "%s", app.ip);
+    else
+        snprintf(buffer, sizeof(buffer), "connecting");
+
+    tft.setTextColor(app.apMode ? TFT_ORANGE : (app.wifiConnected ? TFT_GREEN : TFT_DARKGREY), TFT_BLACK);
+    tft.drawString(buffer, VALUE_X, ROW_WIFI, 4);
+
+    // BLE link state
+    tft.setTextColor(app.bleConnected ? TFT_GREEN : TFT_DARKGREY, TFT_BLACK);
+    tft.drawString(app.bleConnected ? "connected" : "advertising", VALUE_X, ROW_BLE, 4);
 }

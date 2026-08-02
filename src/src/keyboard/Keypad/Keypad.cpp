@@ -1,5 +1,6 @@
 #include "Keypad.h"
 #include "app/app.h"
+#include "keyboard/BLE/BLEKeypad.h"
 
 #include <Adafruit_Keypad.h>
 
@@ -69,5 +70,8 @@ void keypad_loop()
 
         _debug("[keypad] key %d '%c' %s\n", index, app.label,
                app.pressed ? "pressed" : "released");
+
+        // forward to the host over BLE, no-op while unpaired
+        ble_key(index, app.pressed);
     }
 }

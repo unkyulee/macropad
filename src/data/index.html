@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Macro Pad</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --fg:#16181d; --muted:#6b7280;
+    --line:#e3e6ea; --accent:#2563eb; --ok:#16a34a; --warn:#d97706;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#14161a; --card:#1c1f25; --fg:#e8eaed; --muted:#9aa1ac;
+      --line:#2c313a; --accent:#5b8cff; --ok:#3fbf63; --warn:#e0a33a;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{padding:1.2rem 1rem;border-bottom:1px solid var(--line);
+         display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap}
+  h1{font-size:1.15rem;margin:0;letter-spacing:.02em}
+  .ver{color:var(--muted);font-size:.8rem}
+  main{max-width:46rem;margin:0 auto;padding:1rem}
+  section{background:var(--card);border:1px solid var(--line);border-radius:10px;
+          padding:1rem 1.1rem;margin-bottom:1rem}
+  h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;
+     color:var(--muted);margin:0 0 .85rem}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:.75rem}
+  .stat{border:1px solid var(--line);border-radius:8px;padding:.6rem .7rem}
+  .stat b{display:block;font-size:.7rem;text-transform:uppercase;
+          letter-spacing:.06em;color:var(--muted);font-weight:600}
+  .stat span{font-size:1rem}
+  .on{color:var(--ok)} .ap{color:var(--warn)} .off{color:var(--muted)}
+  label{display:block;font-size:.8rem;color:var(--muted);margin:.6rem 0 .2rem}
+  input,select{width:100%;padding:.5rem .6rem;border:1px solid var(--line);
+        border-radius:7px;background:var(--bg);color:var(--fg);font:inherit}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap}
+  .row>*{flex:1 1 12rem}
+  .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
+  .keys div{position:relative}
+  .keys span{position:absolute;top:.3rem;right:.45rem;font-size:.65rem;color:var(--muted)}
+  .keys input{padding-top:1.1rem;text-align:center}
+  .keys input.live{outline:2px solid var(--ok);outline-offset:-1px}
+  button{padding:.55rem 1.1rem;border:1px solid var(--line);border-radius:7px;
+         background:var(--card);color:var(--fg);font:inherit;cursor:pointer}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button:disabled{opacity:.5;cursor:default}
+  .actions{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:1rem}
+  .msg{font-size:.85rem;color:var(--muted)}
+  .hint{font-size:.78rem;color:var(--muted);margin:.5rem 0 0}
+  code{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 .3rem}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Macro Pad</h1>
+  <span class="ver" id="version"></span>
+</header>
+
+<main>
+
+<section>
+  <h2>Status</h2>
+  <div class="stats">
+    <div class="stat"><b>WiFi</b><span id="st-wifi" class="off">-</span></div>
+    <div class="stat"><b>Address</b><span id="st-ip">-</span></div>
+    <div class="stat"><b>Bluetooth</b><span id="st-ble" class="off">-</span></div>
+    <div class="stat"><b>Last key</b><span id="st-key">-</span></div>
+    <div class="stat"><b>Knob</b><span id="st-knob">-</span></div>
+    <div class="stat"><b>Uptime</b><span id="st-up">-</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>WiFi</h2>
+  <div class="row">
+    <div>
+      <label for="ssid">Network</label>
+      <input id="ssid" list="networks" autocomplete="off" placeholder="SSID">
+      <datalist id="networks"></datalist>
+    </div>
+    <div>
+      <label for="pass">Password</label>
+      <input id="pass" type="password" autocomplete="off" placeholder="leave blank for open">
+    </div>
+  </div>
+  <div class="actions">
+    <button id="scan">Scan networks</button>
+    <button id="connect">Save and connect</button>
+    <span class="msg" id="wifi-msg"></span>
+  </div>
+  <p class="hint">Connecting drops the current link. If the pad cannot join, it
+  reopens its own <code>MacroPad-XXXX</code> access point.</p>
+</section>
+
+<section>
+  <h2>Bluetooth keyboard</h2>
+  <div class="row">
+    <div>
+      <label for="ble-name">Advertised name</label>
+      <input id="ble-name" placeholder="Macro Pad">
+    </div>
+    <div>
+      <label for="ble-enabled">Enabled</label>
+      <select id="ble-enabled">
+        <option value="true">On</option>
+        <option value="false">Off</option>
+      </select>
+    </div>
+  </div>
+  <p class="hint">Changing the name or turning BLE on and off takes effect after a reboot.</p>
+</section>
+
+<section>
+  <h2>Key bindings</h2>
+  <div class="keys" id="keys"></div>
+  <div class="row" style="margin-top:.9rem">
+    <div>
+      <label for="knob-cw">Knob clockwise</label>
+      <input id="knob-cw" list="actions">
+    </div>
+    <div>
+      <label for="knob-ccw">Knob counter clockwise</label>
+      <input id="knob-ccw" list="actions">
+    </div>
+  </div>
+  <datalist id="actions">
+    <option>F13</option><option>F24</option>
+    <option>CTRL+C</option><option>CTRL+V</option><option>CTRL+Z</option>
+    <option>CTRL+SHIFT+Z</option><option>ALT+TAB</option><option>GUI+L</option>
+    <option>VOL_UP</option><option>VOL_DOWN</option><option>MUTE</option>
+    <option>PLAY</option><option>NEXT</option><option>PREV</option>
+  </datalist>
+  <p class="hint">Combine modifiers with <code>+</code>, for example
+  <code>CTRL+SHIFT+P</code>. Single characters, <code>F1</code>-<code>F24</code>,
+  <code>ESC TAB ENTER SPACE BACKSPACE DELETE HOME END PGUP PGDN UP DOWN LEFT RIGHT</code>
+  and media keys <code>VOL_UP VOL_DOWN MUTE PLAY STOP NEXT PREV</code> are
+  recognised. Leave a field empty to disable the key. The key you press on the
+  pad is highlighted here.</p>
+</section>
+
+<div class="actions" style="margin-bottom:2rem">
+  <button class="primary" id="save">Save configuration</button>
+  <button id="reboot">Reboot</button>
+  <span class="msg" id="msg"></span>
+</div>
+
+</main>
+
+<script>
+const KEY_COUNT = 20;
+const $ = id => document.getElementById(id);
+let config = null;
+
+function say(el, text, timeout = 4000) {
+  el.textContent = text;
+  if (timeout) setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, timeout);
+}
+
+// ---- key binding grid -------------------------------------------------
+function buildKeys() {
+  const grid = $('keys');
+  for (let i = 0; i < KEY_COUNT; i++) {
+    const cell = document.createElement('div');
+    const input = document.createElement('input');
+    input.id = 'key' + i;
+    input.setAttribute('list', 'actions');
+    const tag = document.createElement('span');
+    tag.textContent = i;
+    cell.append(input, tag);
+    grid.append(cell);
+  }
+}
+
+// ---- config -----------------------------------------------------------
+async function loadConfig() {
+  config = await (await fetch('/api/config')).json();
+
+  $('ssid').value = config.wifi?.ssid ?? '';
+  $('pass').value = config.wifi?.password ?? '';
+  $('ble-name').value = config.ble?.name ?? '';
+  $('ble-enabled').value = String(config.ble?.enabled ?? true);
+
+  const keys = config.keys ?? [];
+  for (let i = 0; i < KEY_COUNT; i++) $('key' + i).value = keys[i] ?? '';
+
+  $('knob-cw').value = config.knob?.cw ?? '';
+  $('knob-ccw').value = config.knob?.ccw ?? '';
+}
+
+function collectConfig() {
+  const next = structuredClone(config ?? {});
+  next.wifi = { ssid: $('ssid').value.trim(), password: $('pass').value };
+  next.ble = { enabled: $('ble-enabled').value === 'true', name: $('ble-name').value.trim() };
+  next.keys = Array.from({ length: KEY_COUNT }, (_, i) => $('key' + i).value.trim());
+  next.knob = { cw: $('knob-cw').value.trim(), ccw: $('knob-ccw').value.trim() };
+  return next;
+}
+
+async function saveConfig() {
+  const body = JSON.stringify(collectConfig());
+  const response = await fetch('/api/config', { method: 'POST', body });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error ?? 'save failed');
+  config = JSON.parse(body);
+}
+
+// ---- status polling ---------------------------------------------------
+function setState(el, text, cls) {
+  el.textContent = text;
+  el.className = cls;
+}
+
+async function poll() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+
+    $('version').textContent = 'v' + s.version;
+
+    if (s.wifi.ap) setState($('st-wifi'), 'access point', 'ap');
+    else if (s.wifi.connected) setState($('st-wifi'), s.wifi.ssid + ' (' + s.wifi.rssi + ' dBm)', 'on');
+    else setState($('st-wifi'), 'offline', 'off');
+
+    $('st-ip').textContent = s.wifi.ip || '-';
+    setState($('st-ble'), s.ble.connected ? 'connected' : 'advertising',
+             s.ble.connected ? 'on' : 'off');
+
+    $('st-key').textContent = s.input.key < 0 ? '-'
+      : s.input.key + (s.input.pressed ? ' down' : ' up');
+    $('st-knob').textContent = s.input.knob;
+
+    const m = Math.floor(s.uptime / 60), h = Math.floor(m / 60);
+    $('st-up').textContent = h ? h + 'h ' + (m % 60) + 'm' : m + 'm ' + (s.uptime % 60) + 's';
+
+    // highlight the binding for whichever key is held on the pad
+    document.querySelectorAll('.keys input.live').forEach(e => e.classList.remove('live'));
+    if (s.input.pressed && s.input.key >= 0) $('key' + s.input.key)?.classList.add('live');
+  } catch (e) {
+    setState($('st-wifi'), 'unreachable', 'off');
+  }
+}
+
+// ---- actions ----------------------------------------------------------
+$('scan').onclick = async e => {
+  e.target.disabled = true;
+  say($('wifi-msg'), 'Scanning...', 0);
+  try {
+    const networks = await (await fetch('/api/wifi/scan')).json();
+    networks.sort((a, b) => b.rssi - a.rssi);
+    $('networks').innerHTML = '';
+    for (const n of networks) {
+      const option = document.createElement('option');
+      option.value = n.ssid;
+      option.label = n.rssi + ' dBm' + (n.open ? ' open' : '');
+      $('networks').append(option);
+    }
+    say($('wifi-msg'), networks.length + ' networks found');
+  } catch {
+    say($('wifi-msg'), 'Scan failed');
+  }
+  e.target.disabled = false;
+};
+
+$('connect').onclick = async e => {
+  e.target.disabled = true;
+  try {
+    await saveConfig();
+    say($('wifi-msg'), 'Saved, reconnecting. Reload from the new address.', 0);
+    await fetch('/api/wifi/connect', { method: 'POST' });
+  } catch (err) {
+    say($('wifi-msg'), err.message);
+  }
+  e.target.disabled = false;
+};
+
+$('save').onclick = async e => {
+  e.target.disabled = true;
+  try {
+    await saveConfig();
+    say($('msg'), 'Saved. Key bindings apply immediately.');
+  } catch (err) {
+    say($('msg'), err.message);
+  }
+  e.target.disabled = false;
+};
+
+$('reboot').onclick = async () => {
+  say($('msg'), 'Rebooting...', 0);
+  await fetch('/api/reboot', { method: 'POST' });
+  setTimeout(() => location.reload(), 6000);
+};
+
+buildKeys();
+loadConfig().catch(() => say($('msg'), 'Could not load configuration'));
+poll();
+setInterval(poll, 1500);
+</script>
+</body>
+</html>
