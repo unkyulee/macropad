@@ -12,7 +12,32 @@
 #define KEY_NUM_LOCK 0xDB
 #endif
 
-static BleKeyboard bleKeyboard;
+// The HID report descriptor already declares the LED output report, and the
+// host writes it whenever a lock key is toggled - that is how a normal
+// keyboard knows to light its Num Lock LED. The library receives the write
+// and then discards it, so this subclass keeps the byte instead.
+#define LED_NUM_LOCK 0x01
+#define LED_CAPS_LOCK 0x02
+#define LED_SCROLL_LOCK 0x04
+
+class LockAwareKeyboard : public BleKeyboard
+{
+public:
+    using BleKeyboard::BleKeyboard;
+
+    // written from the BLE stack task, read from the input loop
+    volatile uint8_t leds = 0;
+
+protected:
+    void onWrite(BLECharacteristic *me) override
+    {
+        std::string value = me->getValue();
+        if (value.length() > 0)
+            leds = (uint8_t)value[0];
+    }
+};
+
+static LockAwareKeyboard bleKeyboard;
 static bool _enabled = false;
 
 // A resolved key binding. Either a normal HID key with optional modifiers,
@@ -269,6 +294,19 @@ void ble_loop()
         app.bleConnected = connected;
         app.dirty = true;
         _log("BLE %s\n", connected ? "connected" : "disconnected");
+    }
+
+    // lock state is only meaningful while a host is attached to report it
+    uint8_t leds = connected ? bleKeyboard.leds : 0;
+    bool numLock = (leds & LED_NUM_LOCK) != 0;
+    bool capsLock = (leds & LED_CAPS_LOCK) != 0;
+
+    if (numLock != app.numLock || capsLock != app.capsLock)
+    {
+        app.numLock = numLock;
+        app.capsLock = capsLock;
+        app.dirty = true;
+        _debug("[ble] num lock %d, caps lock %d\n", numLock, capsLock);
     }
 }
 

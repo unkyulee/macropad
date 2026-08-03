@@ -128,6 +128,7 @@
     <div class="pills">
       <span class="pill" id="p-wifi">wifi</span>
       <span class="pill" id="p-ble">ble</span>
+      <span class="pill" id="p-locks">locks</span>
       <span class="pill" id="p-screen">screen</span>
       <span class="pill" id="p-ver"></span>
     </div>
@@ -900,6 +901,13 @@ async function poll() {
     const ble = $('p-ble');
     ble.className = 'pill ' + (s.ble.connected ? 'on' : '');
     ble.textContent = s.ble.connected ? 'BLE paired' : 'BLE advertising';
+
+    // reported by the host over the HID LED report, so only meaningful
+    // while the pad is paired
+    const locks = $('p-locks');
+    const on = [s.locks?.num && 'NUM', s.locks?.caps && 'CAPS'].filter(Boolean);
+    locks.className = 'pill' + (on.length ? ' on' : '');
+    locks.textContent = on.length ? on.join(' + ') : 'no locks';
 
     $('p-screen').textContent = s.screen < 0 ? 'booting' : 'screen ' + (s.screen + 1);
 

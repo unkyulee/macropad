@@ -36,6 +36,10 @@ struct AppStatus
     // bluetooth
     bool bleConnected = false;
 
+    // lock state, as reported by the connected host over the HID LED report
+    bool numLock = false;
+    bool capsLock = false;
+
     // set by inputs and services, cleared by the display once rendered
     volatile bool dirty = true;
 

@@ -6,9 +6,16 @@
 // connection is up (or the access point is running) display.cpp moves on
 // to the first configured screen - except in AP mode, where this screen
 // stays put because it is holding the instructions the user needs.
+// See ClockScreen: cleared by setup() so a revisit repaints.
+static bool _wasAp = false;
+static char _lastMessage[48] = "";
+
 void InitScreen_setup(int slot)
 {
     (void)slot;
+
+    _wasAp = false;
+    _lastMessage[0] = 0;
 
     TFT_eSPI &tft = display_tft();
 
@@ -25,15 +32,12 @@ void InitScreen_render(int slot)
     TFT_eSPI &tft = display_tft();
     AppStatus &app = status();
 
-    static bool wasAp = false;
-    static char lastMessage[sizeof(app.wifiMessage)] = "";
-
     // repaint the whole body when switching into AP mode, the layouts
     // have nothing in common
-    if (app.apMode != wasAp)
+    if (app.apMode != _wasAp)
     {
-        wasAp = app.apMode;
-        lastMessage[0] = 0;
+        _wasAp = app.apMode;
+        _lastMessage[0] = 0;
         display_clear_body();
     }
 
@@ -57,9 +61,9 @@ void InitScreen_render(int slot)
     }
 
     // connecting: only the status line changes
-    if (strcmp(lastMessage, app.wifiMessage) != 0)
+    if (strcmp(_lastMessage, app.wifiMessage) != 0)
     {
-        strlcpy(lastMessage, app.wifiMessage, sizeof(lastMessage));
+        strlcpy(_lastMessage, app.wifiMessage, sizeof(_lastMessage));
 
         tft.setTextPadding(tft.width() - 40);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);

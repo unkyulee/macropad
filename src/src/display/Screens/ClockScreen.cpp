@@ -7,6 +7,12 @@
 
 #include <time.h>
 
+// What was last painted. File scope, not render() locals, so setup() can
+// clear them: re-entering the screen wipes the panel, and a cache that
+// still matched the new value would skip the repaint and leave it blank.
+static char _lastTime[6] = "";
+static int _lastSynced = -1;
+
 // The POSIX TZ string carries the offset and the daylight saving rules,
 // so the pad needs no timezone database and survives a DST change on its
 // own. The web UI writes it as "tz", with "tzName" only for display.
@@ -22,6 +28,9 @@ void ClockScreen_setup(int slot)
     String tz = config()["screens"][slot]["tz"].as<String>();
     String tzName = config()["screens"][slot]["tzName"].as<String>();
     config_unlock();
+
+    _lastTime[0] = 0;
+    _lastSynced = -1;
 
     ntp_set_zone(tz.c_str());
 
@@ -42,8 +51,6 @@ void ClockScreen_render(int slot)
 
     TFT_eSPI &tft = display_tft();
 
-    static char lastTime[6] = "";
-
     time_t now = time(nullptr);
     struct tm local;
     localtime_r(&now, &local);
@@ -54,9 +61,8 @@ void ClockScreen_render(int slot)
 
     // the digits are dimmed until the time is real, so the moment the first
     // reply lands it has to be repainted even if the text happens to match
-    static int lastSynced = -1;
-    bool justSynced = (lastSynced != (int)synced);
-    lastSynced = (int)synced;
+    bool justSynced = (_lastSynced != (int)synced);
+    _lastSynced = (int)synced;
 
     char timeText[6];
     if (synced)
@@ -65,10 +71,10 @@ void ClockScreen_render(int slot)
         strlcpy(timeText, "--:--", sizeof(timeText));
 
     // nothing changes for a whole minute at a time
-    if (!justSynced && strcmp(timeText, lastTime) == 0)
+    if (!justSynced && strcmp(timeText, _lastTime) == 0)
         return;
 
-    strlcpy(lastTime, timeText, sizeof(lastTime));
+    strlcpy(_lastTime, timeText, sizeof(_lastTime));
 
     // font 7 is the seven segment face, doubled up it fills the panel.
     // Measured rather than assumed, so a narrower display drops to single

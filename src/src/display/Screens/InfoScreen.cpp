@@ -12,6 +12,12 @@
 #define ROW_VALUE_3 (BODY_TOP + 136)
 #define ROW_VERSION (BODY_TOP + 178)
 
+// See ClockScreen: these have to survive render() but be cleared by
+// setup(), or a screen revisit paints nothing onto the cleared panel.
+static char _lastNetwork[40] = "";
+static char _lastAddress[24] = "";
+static int _lastBle = -1;
+
 static void draw_label(const char *text, int y)
 {
     TFT_eSPI &tft = display_tft();
@@ -25,6 +31,10 @@ void InfoScreen_setup(int slot)
     (void)slot;
 
     TFT_eSPI &tft = display_tft();
+
+    _lastNetwork[0] = 0;
+    _lastAddress[0] = 0;
+    _lastBle = -1;
 
     display_clear_body();
 
@@ -43,11 +53,6 @@ void InfoScreen_render(int slot)
     TFT_eSPI &tft = display_tft();
     AppStatus &app = status();
 
-    // the values change rarely, so only repaint when one actually moves
-    static char lastNetwork[40] = "";
-    static char lastAddress[24] = "";
-    static int lastBle = -1;
-
     char network[40];
     if (app.apMode)
         snprintf(network, sizeof(network), "%s", app.apName);
@@ -64,9 +69,9 @@ void InfoScreen_render(int slot)
 
     tft.setTextDatum(TL_DATUM);
 
-    if (strcmp(network, lastNetwork) != 0)
+    if (strcmp(network, _lastNetwork) != 0)
     {
-        strlcpy(lastNetwork, network, sizeof(lastNetwork));
+        strlcpy(_lastNetwork, network, sizeof(_lastNetwork));
 
         // orange while the pad is hosting its own network, since that means
         // it never reached one of the saved ones
@@ -76,9 +81,9 @@ void InfoScreen_render(int slot)
         tft.setTextPadding(0);
     }
 
-    if (strcmp(address, lastAddress) != 0)
+    if (strcmp(address, _lastAddress) != 0)
     {
-        strlcpy(lastAddress, address, sizeof(lastAddress));
+        strlcpy(_lastAddress, address, sizeof(_lastAddress));
 
         tft.setTextColor(TFT_CYAN, TFT_BLACK);
         tft.setTextPadding(tft.width() - 40);
@@ -86,15 +91,17 @@ void InfoScreen_render(int slot)
         tft.setTextPadding(0);
     }
 
-    if ((int)app.bleConnected != lastBle)
+    if ((int)app.bleConnected != _lastBle)
     {
-        lastBle = (int)app.bleConnected;
+        _lastBle = (int)app.bleConnected;
 
         tft.setTextColor(app.bleConnected ? TFT_GREEN : TFT_DARKGREY, TFT_BLACK);
         tft.setTextPadding(tft.width() - 40);
         tft.drawString(app.bleConnected ? "paired" : "advertising", 20, ROW_VALUE_3, 4);
         tft.setTextPadding(0);
     }
+
+    // lock state lives in the footer, which every screen shares
 }
 
 bool InfoScreen_key(int index, bool pressed)

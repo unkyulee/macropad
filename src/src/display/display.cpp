@@ -74,15 +74,36 @@ static void display_footer()
     tft.setTextColor(TFT_SILVER, TFT_BLACK);
     tft.drawString(_title, 8, textY, 1);
 
-    uint16_t wifiColour = app.apMode ? TFT_ORANGE : (app.wifiConnected ? TFT_GREEN : TFT_DARKGREY);
-    String state = String(app.apMode ? "AP" : (app.wifiConnected ? "WIFI" : "----"));
-    state += app.bleConnected ? "  BLE" : "  ---";
+    // Right hand side: lock state and the two links, each in its own colour,
+    // so they cannot go in one drawString. Widths are measured and the block
+    // is right aligned, which keeps it tidy whatever the labels say.
+    struct Segment
+    {
+        const char *text;
+        uint16_t colour;
+    };
 
-    tft.setTextDatum(TR_DATUM);
-    tft.setTextColor(wifiColour, TFT_BLACK);
-    tft.drawString(state, tft.width() - 8, textY, 1);
+    Segment segments[] = {
+        {"NUM", app.numLock ? TFT_GREEN : TFT_DARKGREY},
+        {"CAPS", app.capsLock ? TFT_GREEN : TFT_DARKGREY},
+        {app.apMode ? "AP" : "WIFI",
+         app.apMode ? TFT_ORANGE : (app.wifiConnected ? TFT_GREEN : TFT_DARKGREY)},
+        {"BLE", app.bleConnected ? TFT_GREEN : TFT_DARKGREY},
+    };
 
-    tft.setTextDatum(TL_DATUM);
+    const int gap = 8;
+
+    int total = -gap;
+    for (const Segment &segment : segments)
+        total += tft.textWidth(segment.text, 1) + gap;
+
+    int x = tft.width() - 8 - total;
+    for (const Segment &segment : segments)
+    {
+        tft.setTextColor(segment.colour, TFT_BLACK);
+        tft.drawString(segment.text, x, textY, 1);
+        x += tft.textWidth(segment.text, 1) + gap;
+    }
 }
 
 static const Screen *screen_for(const String &type)
@@ -195,7 +216,7 @@ void display_setup()
     _log("Display setup\n");
 
     tft.begin();
-    tft.setRotation(3);
+    tft.setRotation(1);
     tft.fillScreen(TFT_BLACK);
 
     activate(-1);

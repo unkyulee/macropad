@@ -53,6 +53,10 @@ static void handle_status()
 
     doc["ble"]["connected"] = app.bleConnected;
 
+    // reported by the connected host, not tracked by the pad
+    doc["locks"]["num"] = app.numLock;
+    doc["locks"]["caps"] = app.capsLock;
+
     doc["input"]["key"] = app.key;
     doc["input"]["pressed"] = app.pressed;
     doc["input"]["knob"] = app.knob;
