@@ -7,281 +7,794 @@
 <style>
   :root{
     --bg:#f6f7f9; --card:#fff; --fg:#16181d; --muted:#6b7280;
-    --line:#e3e6ea; --accent:#2563eb; --ok:#16a34a; --warn:#d97706;
+    --line:#e3e6ea; --accent:#2563eb; --ok:#16a34a; --warn:#d97706; --bad:#dc2626;
   }
   @media (prefers-color-scheme:dark){
     :root{
       --bg:#14161a; --card:#1c1f25; --fg:#e8eaed; --muted:#9aa1ac;
-      --line:#2c313a; --accent:#5b8cff; --ok:#3fbf63; --warn:#e0a33a;
+      --line:#2c313a; --accent:#5b8cff; --ok:#3fbf63; --warn:#e0a33a; --bad:#f0716b;
     }
+  }
+  :root[data-theme=light]{
+    --bg:#f6f7f9; --card:#fff; --fg:#16181d; --muted:#6b7280;
+    --line:#e3e6ea; --accent:#2563eb; --ok:#16a34a; --warn:#d97706; --bad:#dc2626;
+  }
+  :root[data-theme=dark]{
+    --bg:#14161a; --card:#1c1f25; --fg:#e8eaed; --muted:#9aa1ac;
+    --line:#2c313a; --accent:#5b8cff; --ok:#3fbf63; --warn:#e0a33a; --bad:#f0716b;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);
-       font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-  header{padding:1.2rem 1rem;border-bottom:1px solid var(--line);
-         display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap}
-  h1{font-size:1.15rem;margin:0;letter-spacing:.02em}
-  .ver{color:var(--muted);font-size:.8rem}
-  main{max-width:46rem;margin:0 auto;padding:1rem}
-  section{background:var(--card);border:1px solid var(--line);border-radius:10px;
-          padding:1rem 1.1rem;margin-bottom:1rem}
+       font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+
+  header{border-bottom:1px solid var(--line);background:var(--card)}
+  .bar{max-width:52rem;margin:0 auto;padding:.9rem 1rem;display:flex;
+       align-items:center;gap:.8rem;flex-wrap:wrap}
+  h1{font-size:1.05rem;margin:0;letter-spacing:.03em}
+  .pills{margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap;font-size:.75rem}
+  .pill{border:1px solid var(--line);border-radius:99px;padding:.15rem .6rem;color:var(--muted)}
+  .pill.on{color:var(--ok);border-color:currentColor}
+  .pill.ap{color:var(--warn);border-color:currentColor}
+
+  nav{max-width:52rem;margin:0 auto;padding:0 1rem;display:flex;gap:.3rem;overflow-x:auto}
+  nav button{border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);
+             padding:.7rem .8rem;font:inherit;cursor:pointer;white-space:nowrap}
+  nav button[aria-selected=true]{color:var(--fg);border-color:var(--accent)}
+
+  main{max-width:52rem;margin:0 auto;padding:1rem}
+  section[hidden]{display:none}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:1rem 1.1rem;margin-bottom:1rem}
   h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;
      color:var(--muted);margin:0 0 .85rem}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:.75rem}
-  .stat{border:1px solid var(--line);border-radius:8px;padding:.6rem .7rem}
-  .stat b{display:block;font-size:.7rem;text-transform:uppercase;
-          letter-spacing:.06em;color:var(--muted);font-weight:600}
-  .stat span{font-size:1rem}
-  .on{color:var(--ok)} .ap{color:var(--warn)} .off{color:var(--muted)}
   label{display:block;font-size:.8rem;color:var(--muted);margin:.6rem 0 .2rem}
   input,select{width:100%;padding:.5rem .6rem;border:1px solid var(--line);
         border-radius:7px;background:var(--bg);color:var(--fg);font:inherit}
   input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
   .row{display:flex;gap:.6rem;flex-wrap:wrap}
   .row>*{flex:1 1 12rem}
-  .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
-  .keys div{position:relative}
-  .keys span{position:absolute;top:.3rem;right:.45rem;font-size:.65rem;color:var(--muted)}
-  .keys input{padding-top:1.1rem;text-align:center}
-  .keys input.live{outline:2px solid var(--ok);outline-offset:-1px}
-  button{padding:.55rem 1.1rem;border:1px solid var(--line);border-radius:7px;
+  button.btn{padding:.5rem 1rem;border:1px solid var(--line);border-radius:7px;
          background:var(--card);color:var(--fg);font:inherit;cursor:pointer}
   button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-  button:disabled{opacity:.5;cursor:default}
-  .actions{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:1rem}
+  button.danger{color:var(--bad)}
+  button.btn:disabled{opacity:.5;cursor:default}
+  .actions{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:.9rem}
   .msg{font-size:.85rem;color:var(--muted)}
-  .hint{font-size:.78rem;color:var(--muted);margin:.5rem 0 0}
-  code{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 .3rem}
+  .hint{font-size:.78rem;color:var(--muted);margin:.6rem 0 0}
+  code{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 .3rem;font-size:.9em}
+
+  ul.list{list-style:none;margin:0;padding:0}
+  ul.list li{display:flex;align-items:center;gap:.7rem;padding:.6rem .1rem;
+             border-bottom:1px solid var(--line)}
+  ul.list li:last-child{border:0}
+  .grow{flex:1;min-width:0}
+  .grow b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .grow small{color:var(--muted)}
+  .num{width:1.6rem;height:1.6rem;flex:none;border-radius:50%;background:var(--bg);
+       border:1px solid var(--line);display:grid;place-items:center;font-size:.75rem;color:var(--muted)}
+
+  .tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
+  .tabs button{padding:.45rem .8rem;border:1px solid var(--line);border-radius:7px;
+               background:var(--card);color:var(--muted);font:inherit;cursor:pointer;font-size:.85rem}
+  .tabs button[aria-selected=true]{border-color:var(--accent);color:var(--fg)}
+  .tabs button .dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;
+                    background:var(--line);margin-right:.4rem}
+  .tabs button.enabled .dot{background:var(--ok)}
+
+  .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
+  .keys div{position:relative}
+  .keys span{position:absolute;top:.2rem;right:.4rem;font-size:.65rem;color:var(--muted);
+             pointer-events:none}
+  .keys button{width:100%;padding:1.15rem .3rem .5rem;border:1px solid var(--line);
+               border-radius:7px;background:var(--bg);color:var(--fg);font:inherit;
+               cursor:pointer;text-align:center;overflow:hidden;text-overflow:ellipsis;
+               white-space:nowrap}
+  .keys button:hover{border-color:var(--accent)}
+  .keys button.unset{color:var(--muted)}
+  .keys button.live{outline:2px solid var(--ok);outline-offset:-1px}
+  .keys div.screenkey button{border-style:dashed}
+  button.picker{width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:7px;
+                background:var(--bg);color:var(--fg);font:inherit;cursor:pointer;text-align:left}
+  button.picker:hover{border-color:var(--accent)}
+
+  .mods{display:flex;gap:.4rem;flex-wrap:wrap;margin:.3rem 0 .2rem}
+  .mods label{display:flex;align-items:center;gap:.3rem;margin:0;padding:.3rem .6rem;
+              border:1px solid var(--line);border-radius:99px;cursor:pointer;
+              font-size:.85rem;color:var(--fg)}
+  .mods input{width:auto;margin:0}
+  .mods label:has(input:checked){border-color:var(--accent);color:var(--accent)}
+  #key-list{width:100%;height:13rem;padding:.3rem;border:1px solid var(--line);
+            border-radius:7px;background:var(--bg);color:var(--fg);font:inherit}
+  .preview{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+
+  dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--fg);
+         padding:1.1rem;max-width:24rem;width:calc(100% - 2rem)}
+  dialog::backdrop{background:#0008}
+  .sticky{position:sticky;bottom:0;background:var(--bg);padding:.8rem 0;
+          border-top:1px solid var(--line);display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Macro Pad</h1>
-  <span class="ver" id="version"></span>
+  <div class="bar">
+    <h1>Macro Pad</h1>
+    <div class="pills">
+      <span class="pill" id="p-wifi">wifi</span>
+      <span class="pill" id="p-ble">ble</span>
+      <span class="pill" id="p-screen">screen</span>
+      <span class="pill" id="p-ver"></span>
+    </div>
+  </div>
+  <nav>
+    <button aria-selected="true" data-tab="wifi">WiFi setup</button>
+    <button data-tab="screens">Screen setup</button>
+    <button data-tab="general">General settings</button>
+  </nav>
 </header>
 
 <main>
 
-<section>
-  <h2>Status</h2>
-  <div class="stats">
-    <div class="stat"><b>WiFi</b><span id="st-wifi" class="off">-</span></div>
-    <div class="stat"><b>Address</b><span id="st-ip">-</span></div>
-    <div class="stat"><b>Bluetooth</b><span id="st-ble" class="off">-</span></div>
-    <div class="stat"><b>Last key</b><span id="st-key">-</span></div>
-    <div class="stat"><b>Knob</b><span id="st-knob">-</span></div>
-    <div class="stat"><b>Uptime</b><span id="st-up">-</span></div>
+<!-- ---------------------------------------------------------- WiFi -->
+<section id="tab-wifi">
+  <div class="card">
+    <h2>Saved networks</h2>
+    <ul class="list" id="wifi-list"></ul>
+    <p class="hint" id="wifi-empty" hidden>No networks saved. The pad stays in
+    access point mode until you add one.</p>
+    <div class="actions">
+      <button class="btn primary" id="wifi-add">Add network</button>
+      <span class="msg" id="wifi-msg"></span>
+    </div>
+    <p class="hint">On boot the pad scans, then tries these in order against
+    whatever is in range. Up to 10 networks. If none connect it opens its own
+    access point and restarts every hour until it gets online.</p>
   </div>
 </section>
 
-<section>
-  <h2>WiFi</h2>
-  <div class="row">
-    <div>
-      <label for="ssid">Network</label>
-      <input id="ssid" list="networks" autocomplete="off" placeholder="SSID">
-      <datalist id="networks"></datalist>
+<!-- ------------------------------------------------------- Screens -->
+<section id="tab-screens" hidden>
+  <div class="card">
+    <h2>Screens</h2>
+    <div class="tabs" id="screen-tabs"></div>
+
+    <div class="row">
+      <div>
+        <label for="s-enabled">Slot</label>
+        <select id="s-enabled">
+          <option value="true">Enabled</option>
+          <option value="false">Disabled (skipped)</option>
+        </select>
+      </div>
+      <div>
+        <label for="s-type">Type</label>
+        <select id="s-type">
+          <option value="clock">Clock</option>
+          <option value="keymap">Keymap info</option>
+          <option value="gif">GIF</option>
+          <option value="calculator">Calculator</option>
+        </select>
+      </div>
     </div>
-    <div>
-      <label for="pass">Password</label>
-      <input id="pass" type="password" autocomplete="off" placeholder="leave blank for open">
+
+    <div id="s-clock" hidden>
+      <label for="s-tz">Timezone</label>
+      <select id="s-tz"></select>
+      <p class="hint">Time comes from NTP once the pad is online. The zone rule
+      includes daylight saving, so the clock corrects itself.</p>
+    </div>
+
+    <div id="s-gif" hidden>
+      <label for="s-file">Animation</label>
+      <select id="s-file"></select>
+      <div class="actions">
+        <input type="file" id="gif-file" accept=".gif" style="flex:1 1 12rem">
+        <button class="btn" id="gif-upload">Upload</button>
+        <button class="btn danger" id="gif-delete">Delete selected</button>
+      </div>
+      <p class="hint">Keep it at or under 320x206 pixels so it fits below the
+      header. Large GIFs decode slowly and eat the filesystem.</p>
+    </div>
+
+    <div id="s-calc" hidden>
+      <p class="hint">The calculator uses this screen's key bindings: keys bound
+      to <code>0</code>-<code>9</code>, <code>.</code>, <code>+</code>,
+      <code>-</code>, <code>*</code>, <code>/</code>, <code>=</code> and
+      <code>ESC</code> (clear) drive it and are not sent to the host. Anything
+      else stays a normal macro key.</p>
     </div>
   </div>
-  <div class="actions">
-    <button id="scan">Scan networks</button>
-    <button id="connect">Save and connect</button>
-    <span class="msg" id="wifi-msg"></span>
+
+  <div class="card">
+    <h2>Key bindings for this screen</h2>
+    <div class="keys" id="keys"></div>
+    <p class="hint">Each screen has its own map. Click a key to pick from every
+    binding the pad understands: letters, digits, punctuation, F1-F24,
+    navigation and editing keys, media keys, and modifier combinations. The
+    dashed key is the screen change key. Press a key on the pad to highlight it
+    here.</p>
   </div>
-  <p class="hint">Connecting drops the current link. If the pad cannot join, it
-  reopens its own <code>MacroPad-XXXX</code> access point.</p>
 </section>
 
-<section>
-  <h2>Bluetooth keyboard</h2>
-  <div class="row">
-    <div>
-      <label for="ble-name">Advertised name</label>
-      <input id="ble-name" placeholder="Macro Pad">
+<!-- ------------------------------------------------------- General -->
+<section id="tab-general" hidden>
+  <div class="card">
+    <h2>Device</h2>
+    <div class="row">
+      <div>
+        <label for="g-name">Device name</label>
+        <input id="g-name">
+      </div>
+      <div>
+        <label for="g-screenkey">Screen change key</label>
+        <select id="g-screenkey"></select>
+      </div>
     </div>
-    <div>
-      <label for="ble-enabled">Enabled</label>
-      <select id="ble-enabled">
-        <option value="true">On</option>
-        <option value="false">Off</option>
-      </select>
+    <p class="hint">The screen change key cycles through enabled screens and is
+    never sent to the host. Default is key 11, the knob push button.</p>
+  </div>
+
+  <div class="card">
+    <h2>Bluetooth keyboard</h2>
+    <div class="row">
+      <div>
+        <label for="g-blename">Advertised name</label>
+        <input id="g-blename" placeholder="Macro Pad">
+      </div>
+      <div>
+        <label for="g-bleenabled">Enabled</label>
+        <select id="g-bleenabled">
+          <option value="true">On</option>
+          <option value="false">Off</option>
+        </select>
+      </div>
+    </div>
+    <p class="hint">Name and on/off changes take effect after a reboot.</p>
+  </div>
+
+  <div class="card">
+    <h2>Knob rotation</h2>
+    <div class="row">
+      <div><label>Clockwise</label><button class="picker" id="g-cw"></button></div>
+      <div><label>Counter clockwise</label><button class="picker" id="g-ccw"></button></div>
+    </div>
+    <p class="hint">Rotation is global, it does not change with the screen.</p>
+  </div>
+
+  <div class="card">
+    <h2>Storage</h2>
+    <p class="msg" id="g-storage">-</p>
+    <div class="actions">
+      <button class="btn" id="reboot">Reboot device</button>
     </div>
   </div>
-  <p class="hint">Changing the name or turning BLE on and off takes effect after a reboot.</p>
 </section>
 
-<section>
-  <h2>Key bindings</h2>
-  <div class="keys" id="keys"></div>
-  <div class="row" style="margin-top:.9rem">
-    <div>
-      <label for="knob-cw">Knob clockwise</label>
-      <input id="knob-cw" list="actions">
-    </div>
-    <div>
-      <label for="knob-ccw">Knob counter clockwise</label>
-      <input id="knob-ccw" list="actions">
-    </div>
-  </div>
-  <datalist id="actions">
-    <option>F13</option><option>F24</option>
-    <option>CTRL+C</option><option>CTRL+V</option><option>CTRL+Z</option>
-    <option>CTRL+SHIFT+Z</option><option>ALT+TAB</option><option>GUI+L</option>
-    <option>VOL_UP</option><option>VOL_DOWN</option><option>MUTE</option>
-    <option>PLAY</option><option>NEXT</option><option>PREV</option>
-  </datalist>
-  <p class="hint">Combine modifiers with <code>+</code>, for example
-  <code>CTRL+SHIFT+P</code>. Single characters, <code>F1</code>-<code>F24</code>,
-  <code>ESC TAB ENTER SPACE BACKSPACE DELETE HOME END PGUP PGDN UP DOWN LEFT RIGHT</code>
-  and media keys <code>VOL_UP VOL_DOWN MUTE PLAY STOP NEXT PREV</code> are
-  recognised. Leave a field empty to disable the key. The key you press on the
-  pad is highlighted here.</p>
-</section>
-
-<div class="actions" style="margin-bottom:2rem">
-  <button class="primary" id="save">Save configuration</button>
-  <button id="reboot">Reboot</button>
+<div class="sticky">
+  <button class="btn primary" id="save">Save configuration</button>
   <span class="msg" id="msg"></span>
 </div>
 
 </main>
 
+<!-- Key picker -->
+<dialog id="key-dialog">
+  <h2 id="key-dialog-title">Key binding</h2>
+
+  <label>Modifiers</label>
+  <div class="mods">
+    <label><input type="checkbox" id="m-ctrl">Ctrl</label>
+    <label><input type="checkbox" id="m-shift">Shift</label>
+    <label><input type="checkbox" id="m-alt">Alt</label>
+    <label><input type="checkbox" id="m-gui">Gui</label>
+  </div>
+
+  <label for="key-search">Key</label>
+  <input id="key-search" placeholder="Search, e.g. f13, vol, enter" autocomplete="off">
+  <select id="key-list" size="10"></select>
+
+  <label for="key-text">Sends</label>
+  <input id="key-text" class="preview" autocomplete="off">
+
+  <div class="actions">
+    <button class="btn" id="key-cancel">Cancel</button>
+    <button class="btn danger" id="key-clear">Disable key</button>
+    <button class="btn primary" id="key-ok">Apply</button>
+  </div>
+</dialog>
+
+<!-- WiFi add / edit -->
+<dialog id="wifi-dialog">
+  <h2 id="wifi-dialog-title">Add network</h2>
+  <div id="wifi-step-scan">
+    <label for="wifi-scan-list">Networks in range</label>
+    <select id="wifi-scan-list" size="7"></select>
+    <div class="actions">
+      <button class="btn" id="wifi-rescan">Rescan</button>
+      <button class="btn" id="wifi-manual">Enter manually</button>
+      <button class="btn primary" id="wifi-pick">Next</button>
+    </div>
+  </div>
+  <div id="wifi-step-pass" hidden>
+    <label for="wifi-ssid">Network</label>
+    <input id="wifi-ssid">
+    <label for="wifi-pass">Password</label>
+    <input id="wifi-pass" type="password" placeholder="leave blank for open">
+    <div class="actions">
+      <button class="btn" id="wifi-cancel">Cancel</button>
+      <button class="btn primary" id="wifi-ok">Save network</button>
+    </div>
+  </div>
+</dialog>
+
 <script>
-const KEY_COUNT = 20;
+const KEY_COUNT = 20, SCREEN_COUNT = 5, WIFI_COUNT = 10;
 const $ = id => document.getElementById(id);
-let config = null;
+let config = null, slot = 0, gifFiles = [];
+
+const ZONES = [
+  ['UTC', 'UTC0'],
+  ['London', 'GMT0BST,M3.5.0/1,M10.5.0'],
+  ['Paris / Berlin / Madrid', 'CET-1CEST,M3.5.0,M10.5.0/3'],
+  ['Athens / Helsinki', 'EET-2EEST,M3.5.0/3,M10.5.0/4'],
+  ['Moscow', 'MSK-3'],
+  ['Dubai', '<+04>-4'],
+  ['India', 'IST-5:30'],
+  ['Bangkok / Jakarta', '<+07>-7'],
+  ['Beijing / Singapore / Perth', 'CST-8'],
+  ['Seoul', 'KST-9'],
+  ['Tokyo', 'JST-9'],
+  ['Sydney', 'AEST-10AEDT,M10.1.0,M4.1.0/3'],
+  ['Auckland', 'NZST-12NZDT,M9.5.0,M4.1.0/3'],
+  ['New York', 'EST5EDT,M3.2.0,M11.1.0'],
+  ['Chicago', 'CST6CDT,M3.2.0,M11.1.0'],
+  ['Denver', 'MST7MDT,M3.2.0,M11.1.0'],
+  ['Phoenix', 'MST7'],
+  ['Los Angeles', 'PST8PDT,M3.2.0,M11.1.0'],
+  ['Anchorage', 'AKST9AKDT,M3.2.0,M11.1.0'],
+  ['Honolulu', 'HST10'],
+  ['Sao Paulo', '<-03>3'],
+  ['Johannesburg', 'SAST-2'],
+];
 
 function say(el, text, timeout = 4000) {
   el.textContent = text;
   if (timeout) setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, timeout);
 }
 
-// ---- key binding grid -------------------------------------------------
+// ---- tabs -------------------------------------------------------------
+document.querySelectorAll('nav button').forEach(button => {
+  button.onclick = () => {
+    document.querySelectorAll('nav button').forEach(b =>
+      b.setAttribute('aria-selected', String(b === button)));
+    for (const name of ['wifi', 'screens', 'general'])
+      $('tab-' + name).hidden = (name !== button.dataset.tab);
+  };
+});
+
+// ---- wifi list --------------------------------------------------------
+function networks() {
+  config.wifi = config.wifi ?? {};
+  config.wifi.networks = config.wifi.networks ?? [];
+  return config.wifi.networks;
+}
+
+function renderWifi() {
+  const list = $('wifi-list');
+  list.innerHTML = '';
+  const items = networks();
+  $('wifi-empty').hidden = items.length > 0;
+  $('wifi-add').disabled = items.length >= WIFI_COUNT;
+
+  items.forEach((network, i) => {
+    const li = document.createElement('li');
+
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = i + 1;
+
+    const grow = document.createElement('div');
+    grow.className = 'grow';
+    const name = document.createElement('b');
+    name.textContent = network.ssid || '(unnamed)';
+    const kind = document.createElement('small');
+    kind.textContent = network.password ? 'password saved' : 'open network';
+    grow.append(name, kind);
+
+    const up = document.createElement('button');
+    up.className = 'btn'; up.textContent = '↑'; up.title = 'Try earlier';
+    up.disabled = i === 0;
+    up.onclick = () => { const [n] = items.splice(i, 1); items.splice(i - 1, 0, n); renderWifi(); };
+
+    const edit = document.createElement('button');
+    edit.className = 'btn'; edit.textContent = 'Edit';
+    edit.onclick = () => openWifiDialog(i);
+
+    const remove = document.createElement('button');
+    remove.className = 'btn danger'; remove.textContent = 'Delete';
+    remove.onclick = () => { items.splice(i, 1); renderWifi(); };
+
+    li.append(num, grow, up, edit, remove);
+    list.append(li);
+  });
+}
+
+let editing = -1;
+
+function openWifiDialog(index) {
+  editing = index;
+  $('wifi-dialog-title').textContent = index < 0 ? 'Add network' : 'Edit network';
+
+  const manual = index >= 0;
+  $('wifi-step-scan').hidden = manual;
+  $('wifi-step-pass').hidden = !manual;
+
+  if (manual) {
+    $('wifi-ssid').value = networks()[index].ssid ?? '';
+    $('wifi-pass').value = networks()[index].password ?? '';
+  } else {
+    $('wifi-ssid').value = '';
+    $('wifi-pass').value = '';
+    scan();
+  }
+
+  $('wifi-dialog').showModal();
+}
+
+async function scan() {
+  const list = $('wifi-scan-list');
+  list.innerHTML = '<option>scanning...</option>';
+  try {
+    const found = await (await fetch('/api/wifi/scan')).json();
+    found.sort((a, b) => b.rssi - a.rssi);
+    list.innerHTML = '';
+    for (const network of found) {
+      const option = document.createElement('option');
+      option.value = network.ssid;
+      option.textContent = `${network.ssid}  ${network.rssi} dBm${network.open ? '  open' : ''}`;
+      list.append(option);
+    }
+    if (!found.length) list.innerHTML = '<option disabled>nothing found</option>';
+  } catch {
+    list.innerHTML = '<option disabled>scan failed</option>';
+  }
+}
+
+$('wifi-add').onclick = () => openWifiDialog(-1);
+$('wifi-rescan').onclick = scan;
+$('wifi-manual').onclick = () => { $('wifi-step-scan').hidden = true; $('wifi-step-pass').hidden = false; };
+$('wifi-pick').onclick = () => {
+  const chosen = $('wifi-scan-list').value;
+  if (!chosen) return;
+  $('wifi-ssid').value = chosen;
+  $('wifi-step-scan').hidden = true;
+  $('wifi-step-pass').hidden = false;
+  $('wifi-pass').focus();
+};
+$('wifi-cancel').onclick = () => $('wifi-dialog').close();
+$('wifi-ok').onclick = () => {
+  const entry = { ssid: $('wifi-ssid').value.trim(), password: $('wifi-pass').value };
+  if (!entry.ssid) return;
+  if (editing < 0) networks().push(entry); else networks()[editing] = entry;
+  $('wifi-dialog').close();
+  renderWifi();
+  say($('wifi-msg'), 'Remember to save.');
+};
+
+// ---- screens ----------------------------------------------------------
+function screens() {
+  config.screens = config.screens ?? [];
+  while (config.screens.length < SCREEN_COUNT)
+    config.screens.push({ enabled: false, type: 'keymap', tz: 'UTC0', tzName: 'UTC', file: '', keys: Array(KEY_COUNT).fill('') });
+  return config.screens;
+}
+
 function buildKeys() {
   const grid = $('keys');
   for (let i = 0; i < KEY_COUNT; i++) {
     const cell = document.createElement('div');
-    const input = document.createElement('input');
-    input.id = 'key' + i;
-    input.setAttribute('list', 'actions');
+    cell.id = 'cell' + i;
+
+    const button = document.createElement('button');
+    button.id = 'key' + i;
+    button.type = 'button';
+    button.onclick = () => openKeyPicker(
+      'Key ' + i,
+      screens()[slot].keys[i] ?? '',
+      value => { screens()[slot].keys[i] = value; setKeyLabel(button, value); });
+
     const tag = document.createElement('span');
     tag.textContent = i;
-    cell.append(input, tag);
+    cell.append(button, tag);
     grid.append(cell);
   }
 }
 
-// ---- config -----------------------------------------------------------
+function setKeyLabel(button, value) {
+  button.textContent = value || 'none';
+  button.classList.toggle('unset', !value);
+  button.title = value || 'not assigned';
+}
+
+function renderScreenTabs() {
+  const tabs = $('screen-tabs');
+  tabs.innerHTML = '';
+  screens().forEach((screen, i) => {
+    const button = document.createElement('button');
+    button.setAttribute('aria-selected', String(i === slot));
+    if (screen.enabled) button.classList.add('enabled');
+    button.innerHTML = '<span class="dot"></span>';
+    button.append(`${i + 1}. ${screen.type}`);
+    button.onclick = () => { slot = i; renderScreen(); };
+    tabs.append(button);
+  });
+}
+
+function renderScreen() {
+  const screen = screens()[slot];
+
+  $('s-enabled').value = String(screen.enabled ?? false);
+  $('s-type').value = screen.type ?? 'keymap';
+  $('s-clock').hidden = screen.type !== 'clock';
+  $('s-gif').hidden = screen.type !== 'gif';
+  $('s-calc').hidden = screen.type !== 'calculator';
+
+  $('s-tz').value = screen.tz ?? 'UTC0';
+  renderGifOptions(screen.file ?? '');
+
+  screen.keys = screen.keys ?? Array(KEY_COUNT).fill('');
+  while (screen.keys.length < KEY_COUNT) screen.keys.push('');
+  for (let i = 0; i < KEY_COUNT; i++) setKeyLabel($('key' + i), screen.keys[i] ?? '');
+
+  markScreenKey();
+  renderScreenTabs();
+}
+
+function markScreenKey() {
+  const key = config.general?.screenKey ?? 11;
+  for (let i = 0; i < KEY_COUNT; i++)
+    $('cell' + i).classList.toggle('screenkey', i === key);
+}
+
+$('s-enabled').onchange = e => { screens()[slot].enabled = e.target.value === 'true'; renderScreenTabs(); };
+$('s-type').onchange = e => { screens()[slot].type = e.target.value; renderScreen(); };
+$('s-tz').onchange = e => {
+  screens()[slot].tz = e.target.value;
+  screens()[slot].tzName = e.target.selectedOptions[0].textContent;
+};
+$('s-file').onchange = e => { screens()[slot].file = e.target.value; };
+
+// ---- gif files --------------------------------------------------------
+function renderGifOptions(selected) {
+  const select = $('s-file');
+  select.innerHTML = '';
+
+  const none = document.createElement('option');
+  none.value = ''; none.textContent = '(none)';
+  select.append(none);
+
+  for (const file of gifFiles) {
+    const option = document.createElement('option');
+    option.value = file.path;
+    option.textContent = `${file.path.replace('/gif/', '')}  ${(file.size / 1024).toFixed(0)} kB`;
+    select.append(option);
+  }
+  select.value = selected;
+}
+
+async function loadGifs() {
+  try {
+    gifFiles = await (await fetch('/api/gif')).json();
+  } catch { gifFiles = []; }
+  renderGifOptions(screens()[slot].file ?? '');
+}
+
+$('gif-upload').onclick = async e => {
+  const file = $('gif-file').files[0];
+  if (!file) return say($('msg'), 'Choose a .gif file first');
+
+  e.target.disabled = true;
+  say($('msg'), 'Uploading...', 0);
+  try {
+    const body = new FormData();
+    body.append('file', file);
+    const response = await fetch('/api/gif/upload', { method: 'POST', body });
+    if (!response.ok) throw new Error('upload failed');
+    await loadGifs();
+    screens()[slot].file = '/gif/' + file.name;
+    renderGifOptions(screens()[slot].file);
+    say($('msg'), 'Uploaded. Save to use it.');
+  } catch (err) {
+    say($('msg'), err.message);
+  }
+  e.target.disabled = false;
+};
+
+$('gif-delete').onclick = async () => {
+  const path = $('s-file').value;
+  if (!path) return;
+  await fetch('/api/gif?path=' + encodeURIComponent(path), { method: 'DELETE' });
+  screens()[slot].file = '';
+  await loadGifs();
+  say($('msg'), 'Deleted');
+};
+
+// ---- key picker -------------------------------------------------------
+// Every key the firmware's parser understands, grouped for browsing.
+// Mirrors namedKeys / namedMedia / the single character case in
+// src/keyboard/BLE/BLEKeypad.cpp - keep the two in step.
+const letters = [...'abcdefghijklmnopqrstuvwxyz'].map(c => [c, c.toUpperCase()]);
+const digits = [...'0123456789'].map(c => [c, c]);
+const punctuation = [
+  ['-', '-  minus'], ['=', '=  equals'], ['[', '[  left bracket'],
+  [']', ']  right bracket'], ['\\', '\\  backslash'], [';', ';  semicolon'],
+  ["'", "'  quote"], [',', ',  comma'], ['.', '.  period'], ['/', '/  slash'],
+  ['`', '`  backtick'],
+];
+const functions = Array.from({ length: 24 }, (_, i) => ['F' + (i + 1), 'F' + (i + 1)]);
+const navigation = [
+  ['ESC', 'Escape'], ['TAB', 'Tab'], ['ENTER', 'Enter'], ['SPACE', 'Space'],
+  ['BACKSPACE', 'Backspace'], ['DELETE', 'Delete'], ['INSERT', 'Insert'],
+  ['HOME', 'Home'], ['END', 'End'], ['PGUP', 'Page up'], ['PGDN', 'Page down'],
+  ['UP', 'Arrow up'], ['DOWN', 'Arrow down'], ['LEFT', 'Arrow left'],
+  ['RIGHT', 'Arrow right'], ['CAPSLOCK', 'Caps lock'], ['PRTSC', 'Print screen'],
+];
+const media = [
+  ['VOL_UP', 'Volume up'], ['VOL_DOWN', 'Volume down'], ['MUTE', 'Mute'],
+  ['PLAY', 'Play / pause'], ['STOP', 'Stop'], ['NEXT', 'Next track'],
+  ['PREV', 'Previous track'], ['CALC', 'Calculator'], ['HOMEPAGE', 'Browser home'],
+];
+const modifiersOnly = [
+  ['CTRL', 'Ctrl (held)'], ['SHIFT', 'Shift (held)'], ['ALT', 'Alt (held)'],
+  ['GUI', 'Gui / Win / Cmd (held)'], ['ALTGR', 'AltGr (held)'],
+];
+
+const KEY_GROUPS = [
+  ['Letters', letters],
+  ['Digits', digits],
+  ['Punctuation', punctuation],
+  ['Function keys', functions],
+  ['Navigation and editing', navigation],
+  ['Media', media],
+  ['Modifier on its own', modifiersOnly],
+];
+
+const MODIFIER_NAMES = ['CTRL', 'SHIFT', 'ALT', 'GUI'];
+let keyApply = null;
+
+// "CTRL+SHIFT+P" -> { mods: ['CTRL','SHIFT'], key: 'P' }
+function parseAction(action) {
+  const parts = String(action ?? '').split('+').map(p => p.trim()).filter(Boolean);
+  const mods = [];
+  let key = '';
+
+  // a trailing empty part means the binding is the plus character itself
+  if (String(action ?? '').endsWith('+') && parts.length) parts.push('+');
+
+  for (const part of parts) {
+    const upper = part.toUpperCase();
+    if (MODIFIER_NAMES.includes(upper) && part !== parts[parts.length - 1]) mods.push(upper);
+    else key = part;
+  }
+  return { mods, key };
+}
+
+function buildAction() {
+  const mods = MODIFIER_NAMES.filter((_, i) =>
+    [$('m-ctrl'), $('m-shift'), $('m-alt'), $('m-gui')][i].checked);
+  const key = $('key-list').value;
+  return [...mods, key].filter(Boolean).join('+');
+}
+
+function renderKeyList(filter = '') {
+  const list = $('key-list');
+  const chosen = list.value;
+  const needle = filter.trim().toLowerCase();
+  list.innerHTML = '';
+
+  for (const [name, entries] of KEY_GROUPS) {
+    const matches = entries.filter(([value, label]) =>
+      !needle || label.toLowerCase().includes(needle) || value.toLowerCase().includes(needle));
+    if (!matches.length) continue;
+
+    const group = document.createElement('optgroup');
+    group.label = name;
+    for (const [value, label] of matches) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      group.append(option);
+    }
+    list.append(group);
+  }
+
+  if (chosen) list.value = chosen;
+}
+
+function openKeyPicker(title, current, onApply) {
+  keyApply = onApply;
+  $('key-dialog-title').textContent = title;
+
+  const { mods, key } = parseAction(current);
+  $('m-ctrl').checked = mods.includes('CTRL');
+  $('m-shift').checked = mods.includes('SHIFT');
+  $('m-alt').checked = mods.includes('ALT');
+  $('m-gui').checked = mods.includes('GUI');
+
+  $('key-search').value = '';
+  renderKeyList();
+  $('key-list').value = key;
+  $('key-text').value = current ?? '';
+
+  $('key-dialog').showModal();
+}
+
+function syncPreview() {
+  $('key-text').value = buildAction();
+}
+
+$('key-search').oninput = e => renderKeyList(e.target.value);
+$('key-list').onchange = syncPreview;
+for (const id of ['m-ctrl', 'm-shift', 'm-alt', 'm-gui']) $(id).onchange = syncPreview;
+
+$('key-cancel').onclick = () => $('key-dialog').close();
+$('key-clear').onclick = () => { keyApply?.(''); $('key-dialog').close(); };
+$('key-ok').onclick = () => {
+  // the text field wins, so anything the list cannot express can still be
+  // typed by hand
+  keyApply?.($('key-text').value.trim());
+  $('key-dialog').close();
+};
+
+// ---- general ----------------------------------------------------------
+function renderGeneral() {
+  config.general = config.general ?? {};
+  config.device = config.device ?? {};
+  config.ble = config.ble ?? {};
+  config.knob = config.knob ?? {};
+
+  $('g-name').value = config.device.name ?? '';
+  $('g-blename').value = config.ble.name ?? '';
+  $('g-bleenabled').value = String(config.ble.enabled ?? true);
+  setKeyLabel($('g-cw'), config.knob.cw ?? '');
+  setKeyLabel($('g-ccw'), config.knob.ccw ?? '');
+
+  const select = $('g-screenkey');
+  select.innerHTML = '';
+  for (let i = 0; i < KEY_COUNT; i++) {
+    const option = document.createElement('option');
+    option.value = i;
+    option.textContent = 'Key ' + i + (i === 11 ? ' (knob button)' : '');
+    select.append(option);
+  }
+  select.value = config.general.screenKey ?? 11;
+}
+
+$('g-name').oninput = e => config.device.name = e.target.value;
+$('g-blename').oninput = e => config.ble.name = e.target.value;
+$('g-bleenabled').onchange = e => config.ble.enabled = e.target.value === 'true';
+$('g-cw').onclick = () => openKeyPicker('Knob clockwise', config.knob.cw ?? '',
+  value => { config.knob.cw = value; setKeyLabel($('g-cw'), value); });
+$('g-ccw').onclick = () => openKeyPicker('Knob counter clockwise', config.knob.ccw ?? '',
+  value => { config.knob.ccw = value; setKeyLabel($('g-ccw'), value); });
+$('g-screenkey').onchange = e => { config.general.screenKey = Number(e.target.value); markScreenKey(); };
+
+// ---- load / save ------------------------------------------------------
 async function loadConfig() {
   config = await (await fetch('/api/config')).json();
-
-  $('ssid').value = config.wifi?.ssid ?? '';
-  $('pass').value = config.wifi?.password ?? '';
-  $('ble-name').value = config.ble?.name ?? '';
-  $('ble-enabled').value = String(config.ble?.enabled ?? true);
-
-  const keys = config.keys ?? [];
-  for (let i = 0; i < KEY_COUNT; i++) $('key' + i).value = keys[i] ?? '';
-
-  $('knob-cw').value = config.knob?.cw ?? '';
-  $('knob-ccw').value = config.knob?.ccw ?? '';
+  renderWifi();
+  renderGeneral();
+  renderScreen();
+  await loadGifs();
 }
-
-function collectConfig() {
-  const next = structuredClone(config ?? {});
-  next.wifi = { ssid: $('ssid').value.trim(), password: $('pass').value };
-  next.ble = { enabled: $('ble-enabled').value === 'true', name: $('ble-name').value.trim() };
-  next.keys = Array.from({ length: KEY_COUNT }, (_, i) => $('key' + i).value.trim());
-  next.knob = { cw: $('knob-cw').value.trim(), ccw: $('knob-ccw').value.trim() };
-  return next;
-}
-
-async function saveConfig() {
-  const body = JSON.stringify(collectConfig());
-  const response = await fetch('/api/config', { method: 'POST', body });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? 'save failed');
-  config = JSON.parse(body);
-}
-
-// ---- status polling ---------------------------------------------------
-function setState(el, text, cls) {
-  el.textContent = text;
-  el.className = cls;
-}
-
-async function poll() {
-  try {
-    const s = await (await fetch('/api/status')).json();
-
-    $('version').textContent = 'v' + s.version;
-
-    if (s.wifi.ap) setState($('st-wifi'), 'access point', 'ap');
-    else if (s.wifi.connected) setState($('st-wifi'), s.wifi.ssid + ' (' + s.wifi.rssi + ' dBm)', 'on');
-    else setState($('st-wifi'), 'offline', 'off');
-
-    $('st-ip').textContent = s.wifi.ip || '-';
-    setState($('st-ble'), s.ble.connected ? 'connected' : 'advertising',
-             s.ble.connected ? 'on' : 'off');
-
-    $('st-key').textContent = s.input.key < 0 ? '-'
-      : s.input.key + (s.input.pressed ? ' down' : ' up');
-    $('st-knob').textContent = s.input.knob;
-
-    const m = Math.floor(s.uptime / 60), h = Math.floor(m / 60);
-    $('st-up').textContent = h ? h + 'h ' + (m % 60) + 'm' : m + 'm ' + (s.uptime % 60) + 's';
-
-    // highlight the binding for whichever key is held on the pad
-    document.querySelectorAll('.keys input.live').forEach(e => e.classList.remove('live'));
-    if (s.input.pressed && s.input.key >= 0) $('key' + s.input.key)?.classList.add('live');
-  } catch (e) {
-    setState($('st-wifi'), 'unreachable', 'off');
-  }
-}
-
-// ---- actions ----------------------------------------------------------
-$('scan').onclick = async e => {
-  e.target.disabled = true;
-  say($('wifi-msg'), 'Scanning...', 0);
-  try {
-    const networks = await (await fetch('/api/wifi/scan')).json();
-    networks.sort((a, b) => b.rssi - a.rssi);
-    $('networks').innerHTML = '';
-    for (const n of networks) {
-      const option = document.createElement('option');
-      option.value = n.ssid;
-      option.label = n.rssi + ' dBm' + (n.open ? ' open' : '');
-      $('networks').append(option);
-    }
-    say($('wifi-msg'), networks.length + ' networks found');
-  } catch {
-    say($('wifi-msg'), 'Scan failed');
-  }
-  e.target.disabled = false;
-};
-
-$('connect').onclick = async e => {
-  e.target.disabled = true;
-  try {
-    await saveConfig();
-    say($('wifi-msg'), 'Saved, reconnecting. Reload from the new address.', 0);
-    await fetch('/api/wifi/connect', { method: 'POST' });
-  } catch (err) {
-    say($('wifi-msg'), err.message);
-  }
-  e.target.disabled = false;
-};
 
 $('save').onclick = async e => {
   e.target.disabled = true;
   try {
-    await saveConfig();
-    say($('msg'), 'Saved. Key bindings apply immediately.');
+    const response = await fetch('/api/config', { method: 'POST', body: JSON.stringify(config) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? 'save failed');
+    say($('msg'), 'Saved. Screens and key bindings apply immediately.');
   } catch (err) {
     say($('msg'), err.message);
   }
@@ -291,11 +804,52 @@ $('save').onclick = async e => {
 $('reboot').onclick = async () => {
   say($('msg'), 'Rebooting...', 0);
   await fetch('/api/reboot', { method: 'POST' });
-  setTimeout(() => location.reload(), 6000);
+  setTimeout(() => location.reload(), 7000);
 };
 
+// ---- status polling ---------------------------------------------------
+async function poll() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+
+    $('p-ver').textContent = 'v' + s.version;
+
+    const wifi = $('p-wifi');
+    wifi.className = 'pill ' + (s.wifi.ap ? 'ap' : s.wifi.connected ? 'on' : '');
+    wifi.textContent = s.wifi.ap ? 'access point'
+      : s.wifi.connected ? `${s.wifi.ssid} ${s.wifi.ip}` : 'offline';
+
+    const ble = $('p-ble');
+    ble.className = 'pill ' + (s.ble.connected ? 'on' : '');
+    ble.textContent = s.ble.connected ? 'BLE paired' : 'BLE advertising';
+
+    $('p-screen').textContent = s.screen < 0 ? 'booting' : 'screen ' + (s.screen + 1);
+
+    if (s.storage.mounted)
+      $('g-storage').textContent =
+        `${(s.storage.free / 1024).toFixed(0)} kB free of ${(s.storage.total / 1048576).toFixed(1)} MB`
+        + `  -  heap ${(s.heap / 1024).toFixed(0)} kB  -  up ${Math.floor(s.uptime / 60)} min`;
+    else
+      $('g-storage').textContent = 'filesystem not mounted';
+
+    document.querySelectorAll('.keys button.live').forEach(el => el.classList.remove('live'));
+    if (s.input.pressed && s.input.key >= 0) $('key' + s.input.key)?.classList.add('live');
+  } catch {
+    $('p-wifi').className = 'pill';
+    $('p-wifi').textContent = 'unreachable';
+  }
+}
+
+// ---- boot -------------------------------------------------------------
+for (const [name, tz] of ZONES) {
+  const option = document.createElement('option');
+  option.value = tz;
+  option.textContent = name;
+  $('s-tz').append(option);
+}
+
 buildKeys();
-loadConfig().catch(() => say($('msg'), 'Could not load configuration'));
+loadConfig().catch(() => say($('msg'), 'Could not load configuration', 0));
 poll();
 setInterval(poll, 1500);
 </script>

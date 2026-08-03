@@ -159,22 +159,31 @@ static KeyAction parse_action(String action)
     return result;
 }
 
+// Each screen carries its own keymap, so this has to run again on every
+// screen change as well as after a config edit.
 void ble_reload()
 {
+    int slot = status().screen;
+
     config_lock();
 
     JsonDocument &cfg = config();
 
-    JsonArray keys = cfg["keys"].as<JsonArray>();
     for (int i = 0; i < KEY_COUNT; i++)
-        _keys[i] = parse_action(keys[i].as<String>());
+    {
+        // nothing is bound while the init screen is up
+        if (slot < 0)
+            _keys[i] = KeyAction();
+        else
+            _keys[i] = parse_action(cfg["screens"][slot]["keys"][i].as<String>());
+    }
 
     _knobCW = parse_action(cfg["knob"]["cw"].as<String>());
     _knobCCW = parse_action(cfg["knob"]["ccw"].as<String>());
 
     config_unlock();
 
-    _debug("[ble] keymap reloaded\n");
+    _debug("[ble] keymap reloaded for screen %d\n", slot);
 }
 
 void ble_setup()

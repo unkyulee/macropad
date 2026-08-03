@@ -6,35 +6,21 @@
 #include <WebServer.h>
 #include <WiFi.h>
 #include <FFat.h>
+#include "app/FileSystem/FileSystemFAT.h"
 
 static WebServer server(80);
 
-// Shown when /index.html is missing from the filesystem, which happens
-// before the first `pio run -t uploadfs`. Deliberately tiny: its only job
-// is to keep WiFi setup reachable so the pad is never locked out.
-static const char FALLBACK_PAGE[] PROGMEM =
-    "<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'>"
-    "<title>Macro Pad</title>"
-    "<style>body{font:16px system-ui;margin:2rem;max-width:30rem}"
-    "input{width:100%;padding:.5rem;margin:.25rem 0 1rem;box-sizing:border-box}"
-    "button{padding:.6rem 1.2rem}</style>"
-    "<h1>Macro Pad</h1>"
-    "<p>The web UI has not been uploaded yet. Run <code>pio run -t uploadfs</code>. "
-    "You can still configure WiFi below.</p>"
-    "<label>SSID<input id=s></label><label>Password<input id=p type=password></label>"
-    "<button onclick=\"save()\">Save and connect</button><pre id=o></pre>"
-    "<script>async function save(){"
-    "const c=await(await fetch('/api/config')).json();"
-    "c.wifi={ssid:s.value,password:p.value};"
-    "await fetch('/api/config',{method:'POST',body:JSON.stringify(c)});"
-    "o.textContent='Saved, reconnecting...';"
-    "await fetch('/api/wifi/connect',{method:'POST'});}</script>";
+// The UI is uploaded from data/ with `pio run -t uploadfs` and served
+// straight off the filesystem, alongside config.json and the GIF uploads.
+#define INDEX_FILE "/index.html"
 
 static void handle_root()
 {
-    if (config_fs_ready() && FFat.exists("/index.html"))
+    server.sendHeader("Cache-Control", "no-cache");
+
+    if (fs_ready() && gfs()->exists(INDEX_FILE))
     {
-        File file = FFat.open("/index.html", "r");
+        File file = gfs()->open(INDEX_FILE, "r");
         if (file)
         {
             server.streamFile(file, "text/html");
@@ -43,7 +29,11 @@ static void handle_root()
         }
     }
 
-    server.send_P(200, "text/html", FALLBACK_PAGE);
+    // nothing to serve: the API still works, so say what is missing rather
+    // than leaving a blank page
+    server.send(200, "text/plain",
+                "index.html is not on the filesystem.\n"
+                "Upload it with: pio run -t uploadfs\n");
 }
 
 static void handle_status()
@@ -67,11 +57,15 @@ static void handle_status()
     doc["input"]["pressed"] = app.pressed;
     doc["input"]["knob"] = app.knob;
 
-    doc["storage"]["mounted"] = config_fs_ready();
-    if (config_fs_ready())
+    doc["screen"] = app.screen;
+
+    doc["storage"]["mounted"] = fs_ready();
+    if (fs_ready())
     {
-        doc["storage"]["total"] = FFat.totalBytes();
-        doc["storage"]["free"] = FFat.freeBytes();
+        doc["storage"]["total"] = fatfs()->totalBytes();
+        doc["storage"]["free"] = fatfs()->freeBytes();
+        doc["storage"]["config"] = gfs()->exists("/config.json");
+        doc["storage"]["ui"] = gfs()->exists(INDEX_FILE);
     }
 
     String out;
@@ -130,6 +124,106 @@ static void handle_config_post()
     server.send(200, "application/json", "{\"ok\":true}");
 }
 
+// ---- GIF storage ------------------------------------------------------
+// Uploads land in /gif so the screen config can point at them by path and
+// the mass storage view later has somewhere obvious to drop files.
+#define GIF_DIR "/gif"
+
+static File _upload;
+
+static void handle_gif_list()
+{
+    JsonDocument doc;
+    JsonArray files = doc.to<JsonArray>();
+
+    if (fs_ready())
+    {
+        File dir = fatfs()->openDir(GIF_DIR);
+        if (dir && dir.isDirectory())
+        {
+            File entry = dir.openNextFile();
+            while (entry)
+            {
+                if (!entry.isDirectory())
+                {
+                    JsonObject item = files.add<JsonObject>();
+                    item["path"] = String(GIF_DIR "/") + entry.name();
+                    item["size"] = entry.size();
+                }
+                entry = dir.openNextFile();
+            }
+            dir.close();
+        }
+    }
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+}
+
+// WebServer calls this repeatedly as the body streams in, then once more
+// at the end. The response is sent by the handler registered alongside it.
+static void handle_gif_upload_data()
+{
+    HTTPUpload &upload = server.upload();
+
+    if (upload.status == UPLOAD_FILE_START)
+    {
+        if (!fs_ready())
+            return;
+
+        fatfs()->mkdir(GIF_DIR);
+
+        String name = upload.filename;
+        int slash = name.lastIndexOf('/');
+        if (slash >= 0)
+            name = name.substring(slash + 1);
+        if (!name.endsWith(".gif"))
+            name += ".gif";
+
+        String path = String(GIF_DIR "/") + name;
+        _upload = gfs()->open(path.c_str(), "w");
+        _log("Receiving %s\n", path.c_str());
+    }
+    else if (upload.status == UPLOAD_FILE_WRITE)
+    {
+        if (_upload)
+            _upload.write(upload.buf, upload.currentSize);
+    }
+    else if (upload.status == UPLOAD_FILE_END)
+    {
+        if (_upload)
+        {
+            _upload.close();
+            _log("Received %u bytes\n", upload.totalSize);
+        }
+    }
+}
+
+static void handle_gif_upload_done()
+{
+    server.send(200, "application/json", "{\"ok\":true}");
+}
+
+static void handle_gif_delete()
+{
+    if (!server.hasArg("path"))
+    {
+        server.send(400, "application/json", "{\"error\":\"missing path\"}");
+        return;
+    }
+
+    String path = server.arg("path");
+    if (!path.startsWith(GIF_DIR "/"))
+    {
+        server.send(400, "application/json", "{\"error\":\"outside " GIF_DIR "\"}");
+        return;
+    }
+
+    bool ok = gfs()->remove(path.c_str());
+    server.send(ok ? 200 : 404, "application/json", ok ? "{\"ok\":true}" : "{\"error\":\"not found\"}");
+}
+
 static void handle_wifi_scan()
 {
     int found = WiFi.scanNetworks();
@@ -173,11 +267,14 @@ void webui_setup()
     server.on("/api/config", HTTP_GET, handle_config_get);
     server.on("/api/config", HTTP_POST, handle_config_post);
     server.on("/api/wifi/scan", HTTP_GET, handle_wifi_scan);
+    server.on("/api/gif", HTTP_GET, handle_gif_list);
+    server.on("/api/gif", HTTP_DELETE, handle_gif_delete);
+    server.on("/api/gif/upload", HTTP_POST, handle_gif_upload_done, handle_gif_upload_data);
     server.on("/api/wifi/connect", HTTP_POST, handle_wifi_connect);
     server.on("/api/reboot", HTTP_POST, handle_reboot);
 
     // anything else (css, js, images) comes straight off the filesystem
-    if (config_fs_ready())
+    if (fs_ready())
         server.serveStatic("/", FFat, "/");
 
     server.onNotFound([]()

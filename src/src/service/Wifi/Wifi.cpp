@@ -4,11 +4,25 @@
 
 #include <WiFi.h>
 
-// how long to wait for the configured network before falling back to AP
-#define STA_TIMEOUT_MS 12000
+// how long to wait for one network before moving to the next
+#define STA_TIMEOUT_MS 10000
 
-// how often to retry the configured network while running as an AP
+// how often to retry the saved networks while running as an AP
 #define RETRY_INTERVAL_MS 60000
+
+// restart the device after this long with no connection, in case the
+// radio or the router got itself into a state a reboot would clear
+#define OFFLINE_RESTART_MS (60UL * 60UL * 1000UL)
+
+static unsigned long _offlineSince = 0;
+
+static void say(const char *message)
+{
+    AppStatus &app = status();
+    strlcpy(app.wifiMessage, message, sizeof(app.wifiMessage));
+    app.dirty = true;
+    _log("WiFi: %s\n", message);
+}
 
 static void publish_state(bool connected, bool apMode, const IPAddress &ip, const char *ssid)
 {
@@ -17,8 +31,14 @@ static void publish_state(bool connected, bool apMode, const IPAddress &ip, cons
     app.wifiConnected = connected;
     app.apMode = apMode;
     strlcpy(app.ip, ip.toString().c_str(), sizeof(app.ip));
-    strlcpy(app.ssid, ssid ? ssid : "", sizeof(app.ssid));
+    if (ssid)
+        strlcpy(app.ssid, ssid, sizeof(app.ssid));
     app.dirty = true;
+
+    if (connected)
+        _offlineSince = 0;
+    else if (_offlineSince == 0)
+        _offlineSince = millis();
 }
 
 // Access point name is stable per device so a bookmarked address keeps
@@ -38,31 +58,24 @@ static void start_ap()
     String name = ap_name();
 
     WiFi.mode(WIFI_AP);
-    // open network on purpose: the pad has no screen keyboard to type a
-    // password with, and the AP only exists to hand over credentials
+    // open network on purpose: the pad has no keyboard to type a password
+    // with, and the AP only exists to hand over credentials
     WiFi.softAP(name.c_str());
 
+    AppStatus &app = status();
+    strlcpy(app.apName, name.c_str(), sizeof(app.apName));
+
     _log("Access point '%s' at %s\n", name.c_str(), WiFi.softAPIP().toString().c_str());
-    publish_state(false, true, WiFi.softAPIP(), name.c_str());
+    publish_state(false, true, WiFi.softAPIP(), "");
+    say("access point");
 }
 
-static bool start_sta()
+static bool connect_to(const String &ssid, const String &password)
 {
-    config_lock();
-    String ssid = config()["wifi"]["ssid"].as<String>();
-    String password = config()["wifi"]["password"].as<String>();
-    config_unlock();
+    char message[sizeof(status().wifiMessage)];
+    snprintf(message, sizeof(message), "trying %s", ssid.c_str());
+    say(message);
 
-    if (ssid.length() == 0)
-    {
-        _log("No WiFi credentials configured\n");
-        return false;
-    }
-
-    _log("Connecting to '%s'\n", ssid.c_str());
-
-    WiFi.mode(WIFI_STA);
-    WiFi.setSleep(true); // the pad is idle most of the time
     WiFi.begin(ssid.c_str(), password.c_str());
 
     unsigned long started = millis();
@@ -71,18 +84,82 @@ static bool start_sta()
 
     if (WiFi.status() != WL_CONNECTED)
     {
-        _log("Connection to '%s' failed\n", ssid.c_str());
+        WiFi.disconnect();
         return false;
     }
 
-    _log("Connected, IP %s\n", WiFi.localIP().toString().c_str());
+    _log("Connected to '%s', IP %s\n", ssid.c_str(), WiFi.localIP().toString().c_str());
     publish_state(true, false, WiFi.localIP(), ssid.c_str());
+    say("connected");
     return true;
+}
+
+// Scan first, then try only the saved networks that are actually in range,
+// in the order they appear in the config. Without the scan a list of ten
+// networks would take almost two minutes of timeouts to walk through.
+static bool start_sta()
+{
+    config_lock();
+    JsonArray networks = config()["wifi"]["networks"].as<JsonArray>();
+    int count = networks.size();
+    if (count > WIFI_COUNT)
+        count = WIFI_COUNT;
+
+    String ssids[WIFI_COUNT];
+    String passwords[WIFI_COUNT];
+    for (int i = 0; i < count; i++)
+    {
+        ssids[i] = networks[i]["ssid"].as<String>();
+        passwords[i] = networks[i]["password"].as<String>();
+    }
+    config_unlock();
+
+    if (count == 0)
+    {
+        say("no networks saved");
+        return false;
+    }
+
+    WiFi.mode(WIFI_STA);
+    WiFi.setSleep(true); // the pad is idle most of the time
+
+    say("scanning");
+    int found = WiFi.scanNetworks();
+
+    for (int i = 0; i < count; i++)
+    {
+        if (ssids[i].length() == 0)
+            continue;
+
+        bool inRange = false;
+        for (int j = 0; j < found; j++)
+        {
+            if (WiFi.SSID(j) == ssids[i])
+            {
+                inRange = true;
+                break;
+            }
+        }
+
+        if (!inRange)
+            continue;
+
+        if (connect_to(ssids[i], passwords[i]))
+        {
+            WiFi.scanDelete();
+            return true;
+        }
+    }
+
+    WiFi.scanDelete();
+    say("no saved network in range");
+    return false;
 }
 
 void wifi_setup()
 {
     WiFi.persistent(false);
+    _offlineSince = millis();
 
     if (!start_sta())
         start_ap();
@@ -90,6 +167,7 @@ void wifi_setup()
 
 void wifi_reconnect()
 {
+    WiFi.softAPdisconnect(true);
     WiFi.disconnect(true);
     delay(100);
 
@@ -106,21 +184,35 @@ void wifi_loop()
 
     AppStatus &app = status();
 
+    // an hour with no link and nothing to show for it: restart. Skipped
+    // while a browser is likely to be sitting on the config page.
+    if (_offlineSince != 0 && millis() - _offlineSince > OFFLINE_RESTART_MS)
+    {
+        if (WiFi.softAPgetStationNum() == 0)
+        {
+            _log("Offline for an hour, restarting\n");
+            delay(100);
+            ESP.restart();
+        }
+    }
+
     if (app.apMode)
     {
-        // periodically give the configured network another chance, so the
-        // pad rejoins on its own once the router is back
+        // periodically give the saved networks another chance, so the pad
+        // rejoins on its own once the router is back
         static unsigned long lastRetry = 0;
         if (millis() - lastRetry < RETRY_INTERVAL_MS)
             return;
         lastRetry = millis();
 
-        config_lock();
-        bool hasCredentials = config()["wifi"]["ssid"].as<String>().length() > 0;
-        config_unlock();
+        // don't yank the radio out from under someone using the config page
+        if (WiFi.softAPgetStationNum() > 0)
+            return;
 
-        if (hasCredentials && start_sta())
+        if (start_sta())
             WiFi.softAPdisconnect(true);
+        else
+            start_ap();
 
         return;
     }
@@ -131,16 +223,13 @@ void wifi_loop()
     if (connected != app.wifiConnected)
     {
         if (connected)
-        {
-            // copy first: publish_state writes into app.ssid
-            char ssid[sizeof(app.ssid)];
-            strlcpy(ssid, app.ssid, sizeof(ssid));
-            publish_state(true, false, WiFi.localIP(), ssid);
-        }
+            publish_state(true, false, WiFi.localIP(), NULL);
         else
         {
             _log("WiFi lost\n");
-            start_ap();
+            publish_state(false, false, IPAddress(0, 0, 0, 0), NULL);
+            if (!start_sta())
+                start_ap();
         }
     }
 }

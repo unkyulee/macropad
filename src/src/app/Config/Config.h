@@ -3,8 +3,20 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-// number of physical keys the config describes, must match the keypad matrix
+// number of physical keys, must match the keypad matrix
 #define KEY_COUNT 20
+
+// configurable screen slots
+#define SCREEN_COUNT 5
+
+// saved wifi networks the init screen will try in turn
+#define WIFI_COUNT 10
+
+// screen types, kept as strings in config.json
+#define SCREEN_CLOCK "clock"
+#define SCREEN_KEYMAP "keymap"
+#define SCREEN_GIF "gif"
+#define SCREEN_CALCULATOR "calculator"
 
 // Mounts the FAT partition and loads /config.json, writing a default
 // config when the file is missing or unreadable.
@@ -12,9 +24,6 @@ void config_setup();
 
 bool config_load();
 bool config_save();
-
-// True when the FAT partition mounted, so the web server can serve files.
-bool config_fs_ready();
 
 // The live configuration document. It is read from the input core and
 // written from the network core, so every access must be wrapped in

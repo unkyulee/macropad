@@ -1,13 +1,11 @@
 #include "Config.h"
 #include "app/app.h"
-
-#include <FFat.h>
+#include "app/FileSystem/FileSystem.h"
 
 #define CONFIG_FILE "/config.json"
 
 static JsonDocument _config;
 static SemaphoreHandle_t _lock = nullptr;
-static bool _fsReady = false;
 
 JsonDocument &config()
 {
@@ -26,11 +24,6 @@ void config_unlock()
         xSemaphoreGive(_lock);
 }
 
-bool config_fs_ready()
-{
-    return _fsReady;
-}
-
 // Factory configuration. Keys are named by action strings that
 // keyboard/BLE/BLEKeypad.cpp resolves into HID reports, so the whole
 // keymap is editable from the web UI without a firmware change.
@@ -40,27 +33,41 @@ static void config_defaults()
 
     _config["device"]["name"] = "MacroPad";
 
-    _config["wifi"]["ssid"] = "";
-    _config["wifi"]["password"] = "";
+    // up to WIFI_COUNT networks, tried in order against whatever is in range
+    _config["wifi"]["networks"].to<JsonArray>();
 
     _config["ble"]["enabled"] = true;
     _config["ble"]["name"] = "Macro Pad";
 
-    // F13-F24 are unused by every OS, which makes them the safe default
-    // for a macro pad: bind them to whatever you like on the host side.
-    static const char *defaults[KEY_COUNT] = {
-        "F13", "F14", "F15", "F16",
-        "F17", "F18", "F19", "F20",
-        "F21", "F22", "F23", "F24",
-        "CTRL+C", "CTRL+V", "CTRL+Z", "CTRL+SHIFT+Z",
-        "MUTE", "", "PLAY", ""};
-
-    JsonArray keys = _config["keys"].to<JsonArray>();
-    for (int i = 0; i < KEY_COUNT; i++)
-        keys.add(defaults[i]);
+    // the knob push button cycles screens instead of sending a keystroke
+    _config["general"]["screenKey"] = 11;
 
     _config["knob"]["cw"] = "VOL_UP";
     _config["knob"]["ccw"] = "VOL_DOWN";
+
+    JsonArray screens = _config["screens"].to<JsonArray>();
+    for (int i = 0; i < SCREEN_COUNT; i++)
+    {
+        JsonObject screen = screens.add<JsonObject>();
+        screen["enabled"] = (i == 0); // one screen on, the rest waiting
+        screen["type"] = (i == 0) ? SCREEN_CLOCK : SCREEN_KEYMAP;
+        screen["tz"] = "UTC0";
+        screen["tzName"] = "UTC";
+        screen["file"] = "";
+
+        // F13-F24 are unused by every OS, which makes them the safe default
+        // for a macro pad: bind them to whatever you like on the host side.
+        static const char *defaults[KEY_COUNT] = {
+            "F13", "F14", "F15", "F16",
+            "F17", "F18", "F19", "F20",
+            "F21", "F22", "F23", "",
+            "CTRL+C", "CTRL+V", "CTRL+Z", "CTRL+SHIFT+Z",
+            "MUTE", "", "PLAY", ""};
+
+        JsonArray keys = screen["keys"].to<JsonArray>();
+        for (int k = 0; k < KEY_COUNT; k++)
+            keys.add(defaults[k]);
+    }
 }
 
 bool config_load()
@@ -69,9 +76,9 @@ bool config_load()
 
     bool loaded = false;
 
-    if (_fsReady && FFat.exists(CONFIG_FILE))
+    if (fs_ready() && gfs()->exists(CONFIG_FILE))
     {
-        File file = FFat.open(CONFIG_FILE, "r");
+        File file = gfs()->open(CONFIG_FILE, "r");
         if (file)
         {
             DeserializationError error = deserializeJson(_config, file);
@@ -104,7 +111,7 @@ bool config_load()
 
 bool config_save()
 {
-    if (!_fsReady)
+    if (!fs_ready())
     {
         _log("Cannot save config, filesystem not mounted\n");
         return false;
@@ -113,7 +120,7 @@ bool config_save()
     config_lock();
 
     bool ok = false;
-    File file = FFat.open(CONFIG_FILE, "w");
+    File file = gfs()->open(CONFIG_FILE, "w");
     if (file)
     {
         ok = serializeJsonPretty(_config, file) > 0;
@@ -133,14 +140,5 @@ bool config_save()
 void config_setup()
 {
     _lock = xSemaphoreCreateMutex();
-
-    // format on failure: a blank or corrupt FAT partition would otherwise
-    // leave the pad with no way to store settings
-    _fsReady = FFat.begin(true);
-    if (_fsReady)
-        _log("FAT mounted, %u of %u bytes free\n", FFat.freeBytes(), FFat.totalBytes());
-    else
-        _log("FAT mount failed, running with defaults only\n");
-
     config_load();
 }

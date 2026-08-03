@@ -4,6 +4,7 @@
 #include "Keypad/Keypad.h"
 #include "Knob/Knob.h"
 #include "BLE/BLEKeypad.h"
+#include "display/display.h"
 
 //
 void keyboard_setup()
@@ -22,7 +23,10 @@ void keyboard_loop()
     if (app.configReload)
     {
         app.configReload = false;
-        ble_reload();
+        keypad_reload();
+
+        // re-entering the screen also rebuilds the BLE keymap
+        display_reload();
     }
 
     keypad_loop();

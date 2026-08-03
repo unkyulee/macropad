@@ -26,6 +26,12 @@ struct AppStatus
     bool apMode = false;
     char ip[16] = "";
     char ssid[33] = "";
+    char apName[24] = "";
+    char wifiMessage[48] = "starting";
+
+    // active screen slot, or -1 while the init screen owns the display
+    int screen = -1;
+    bool booting = true;
 
     // bluetooth
     bool bleConnected = false;
@@ -42,3 +48,16 @@ AppStatus &status();
 
 //
 void app_setup();
+
+// Storage. Everything that touches files goes through this rather than
+// naming a concrete filesystem, which stays in one place.
+class FileSystem;
+FileSystem *gfs();
+
+// Same object, concrete type, for the few callers that need directory
+// listings or free space.
+class FileSystemFAT;
+FileSystemFAT *fatfs();
+
+// True once the storage partition is mounted.
+bool fs_ready();

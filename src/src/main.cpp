@@ -5,6 +5,7 @@
 #include "keyboard/keyboard.h"
 #include "service/Wifi/Wifi.h"
 #include "service/WebUI/WebUI.h"
+#include "service/MassStorage/MassStorage.h"
 
 // WiFi association and HTTP request handling both block for long enough to
 // be felt as key latency, so they get their own core. The Arduino loop
@@ -25,6 +26,10 @@ static void NetworkCore(void *pvParameters)
 void setup()
 {
     app_setup();
+
+    // expose the filesystem as a USB drive
+    ms_setup();
+
     display_setup();
     keyboard_setup();
 
@@ -44,6 +49,7 @@ void loop()
     // read the keypad and the knob, then paint whatever changed
     keyboard_loop();
     display_loop();
+    ms_loop();
 
     yield();
 }
