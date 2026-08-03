@@ -81,11 +81,17 @@
                     background:var(--line);margin-right:.4rem}
   .tabs button.enabled .dot{background:var(--ok)}
 
-  .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
-  .keys div{position:relative}
+  /* laid out like a real numeric keypad: + and Enter are double height,
+     the zero is double width, and the positions the PCB does not populate
+     are simply absent */
+  .keys{display:grid;grid-template-columns:repeat(4,1fr);
+        grid-auto-rows:3.1rem;gap:.5rem}
+  .keys div{position:relative;display:grid}
+  .keys div.tall{grid-row:span 2}
+  .keys div.wide{grid-column:span 2}
   .keys span{position:absolute;top:.2rem;right:.4rem;font-size:.65rem;color:var(--muted);
              pointer-events:none}
-  .keys button{width:100%;padding:1.15rem .3rem .5rem;border:1px solid var(--line);
+  .keys button{width:100%;height:100%;padding:1.15rem .3rem .5rem;border:1px solid var(--line);
                border-radius:7px;background:var(--bg);color:var(--fg);font:inherit;
                cursor:pointer;text-align:center;overflow:hidden;text-overflow:ellipsis;
                white-space:nowrap}
@@ -157,6 +163,16 @@
   <div class="card">
     <h2>Screens</h2>
     <div class="tabs" id="screen-tabs"></div>
+    <p class="hint" style="margin:-.4rem 0 .9rem">The knob push button steps
+    through the enabled screens, then an info screen showing the network and
+    address, then back to the first. Disabled slots are skipped.</p>
+
+    <div class="row">
+      <div>
+        <label for="s-name">Name</label>
+        <input id="s-name" maxlength="20" placeholder="shown on the pad">
+      </div>
+    </div>
 
     <div class="row">
       <div>
@@ -197,22 +213,25 @@
     </div>
 
     <div id="s-calc" hidden>
-      <p class="hint">The calculator uses this screen's key bindings: keys bound
-      to <code>0</code>-<code>9</code>, <code>.</code>, <code>+</code>,
-      <code>-</code>, <code>*</code>, <code>/</code>, <code>=</code> and
-      <code>ESC</code> (clear) drive it and are not sent to the host. Anything
-      else stays a normal macro key.</p>
+      <p class="hint">The calculator uses this screen's key bindings. The
+      numeric keypad keys drive it, as do plain <code>0</code>-<code>9</code>,
+      <code>.</code>, <code>+</code>, <code>-</code>, <code>*</code>,
+      <code>/</code>, <code>=</code>, <code>ESC</code> and
+      <code>BACKSPACE</code>. <code>Num Lock</code> clears and
+      <code>Numpad Enter</code> evaluates. Those keys are handled on the pad
+      and never reach the host; anything else stays a normal macro key.</p>
     </div>
   </div>
 
   <div class="card">
     <h2>Key bindings for this screen</h2>
     <div class="keys" id="keys"></div>
-    <p class="hint">Each screen has its own map. Click a key to pick from every
-    binding the pad understands: letters, digits, punctuation, F1-F24,
-    navigation and editing keys, media keys, and modifier combinations. The
-    dashed key is the screen change key. Press a key on the pad to highlight it
-    here.</p>
+    <p class="hint">Laid out like the pad itself. Each screen has its own map.
+    Click a key to pick from every binding the pad understands: letters, digits,
+    punctuation, F1-F24, navigation and editing keys, media keys, and modifier
+    combinations. Press a key on the pad to highlight it here. The knob push
+    button sits under the double height <code>+</code> and is not shown, since
+    it cycles screens rather than sending a key.</p>
   </div>
 </section>
 
@@ -266,7 +285,13 @@
     <p class="msg" id="g-storage">-</p>
     <div class="actions">
       <button class="btn" id="reboot">Reboot device</button>
+      <button class="btn danger" id="reset">Reset to defaults</button>
     </div>
+    <p class="hint">Reset restores the factory configuration, including the
+    numeric keypad key bindings. It also clears the saved WiFi networks, so the
+    pad will come back up as an access point. The stored configuration always
+    wins over the built-in defaults, so this is the only way to pick up a
+    default keymap that changed in a firmware update.</p>
   </div>
 </section>
 
@@ -485,15 +510,32 @@ $('wifi-ok').onclick = () => {
 function screens() {
   config.screens = config.screens ?? [];
   while (config.screens.length < SCREEN_COUNT)
-    config.screens.push({ enabled: false, type: 'keymap', tz: 'UTC0', tzName: 'UTC', file: '', keys: Array(KEY_COUNT).fill('') });
+    config.screens.push({
+      enabled: false, type: 'keymap', name: 'Screen ' + (config.screens.length + 1),
+      tz: 'UTC0', tzName: 'UTC', file: '', keys: Array(KEY_COUNT).fill(''),
+    });
   return config.screens;
 }
+
+// Physical layout of the pad, which is a numeric keypad:
+//   11 is the knob push button, covered by the double height +
+//   17 is covered by the double width 0
+//   19 is covered by the double height Enter
+// None of the three has a switch of its own, so none is shown. The spans
+// rely on grid auto placement, which needs the cells in index order.
+const HIDDEN_KEYS = [11, 17, 19];
+const TALL_KEYS = [7, 15];  // + and Enter
+const WIDE_KEYS = [16];     // 0
 
 function buildKeys() {
   const grid = $('keys');
   for (let i = 0; i < KEY_COUNT; i++) {
+    if (HIDDEN_KEYS.includes(i)) continue;
+
     const cell = document.createElement('div');
     cell.id = 'cell' + i;
+    if (TALL_KEYS.includes(i)) cell.classList.add('tall');
+    if (WIDE_KEYS.includes(i)) cell.classList.add('wide');
 
     const button = document.createElement('button');
     button.id = 'key' + i;
@@ -524,7 +566,7 @@ function renderScreenTabs() {
     button.setAttribute('aria-selected', String(i === slot));
     if (screen.enabled) button.classList.add('enabled');
     button.innerHTML = '<span class="dot"></span>';
-    button.append(`${i + 1}. ${screen.type}`);
+    button.append(`${i + 1}. ${screen.name?.trim() || screen.type}`);
     button.onclick = () => { slot = i; renderScreen(); };
     tabs.append(button);
   });
@@ -533,6 +575,7 @@ function renderScreenTabs() {
 function renderScreen() {
   const screen = screens()[slot];
 
+  $('s-name').value = screen.name ?? '';
   $('s-enabled').value = String(screen.enabled ?? false);
   $('s-type').value = screen.type ?? 'keymap';
   $('s-clock').hidden = screen.type !== 'clock';
@@ -544,7 +587,11 @@ function renderScreen() {
 
   screen.keys = screen.keys ?? Array(KEY_COUNT).fill('');
   while (screen.keys.length < KEY_COUNT) screen.keys.push('');
-  for (let i = 0; i < KEY_COUNT; i++) setKeyLabel($('key' + i), screen.keys[i] ?? '');
+  // hidden positions have no button, but their config slot still exists
+  for (let i = 0; i < KEY_COUNT; i++) {
+    const button = $('key' + i);
+    if (button) setKeyLabel(button, screen.keys[i] ?? '');
+  }
 
   markScreenKey();
   renderScreenTabs();
@@ -553,9 +600,10 @@ function renderScreen() {
 function markScreenKey() {
   const key = config.general?.screenKey ?? 11;
   for (let i = 0; i < KEY_COUNT; i++)
-    $('cell' + i).classList.toggle('screenkey', i === key);
+    $('cell' + i)?.classList.toggle('screenkey', i === key);
 }
 
+$('s-name').oninput = e => { screens()[slot].name = e.target.value; renderScreenTabs(); };
 $('s-enabled').onchange = e => { screens()[slot].enabled = e.target.value === 'true'; renderScreenTabs(); };
 $('s-type').onchange = e => { screens()[slot].type = e.target.value; renderScreen(); };
 $('s-tz').onchange = e => {
@@ -639,6 +687,19 @@ const navigation = [
   ['UP', 'Arrow up'], ['DOWN', 'Arrow down'], ['LEFT', 'Arrow left'],
   ['RIGHT', 'Arrow right'], ['CAPSLOCK', 'Caps lock'], ['PRTSC', 'Print screen'],
 ];
+// The numeric keypad sends different HID codes from the number row, and
+// they are not interchangeable: Alt plus numpad digits is how Windows
+// enters a character by code point, and that only works with these.
+const numpad = [
+  ['NUM_LOCK', 'Num Lock'],
+  ['NUM_0', 'Numpad 0'], ['NUM_1', 'Numpad 1'], ['NUM_2', 'Numpad 2'],
+  ['NUM_3', 'Numpad 3'], ['NUM_4', 'Numpad 4'], ['NUM_5', 'Numpad 5'],
+  ['NUM_6', 'Numpad 6'], ['NUM_7', 'Numpad 7'], ['NUM_8', 'Numpad 8'],
+  ['NUM_9', 'Numpad 9'],
+  ['NUM_PERIOD', 'Numpad .  decimal'], ['NUM_ENTER', 'Numpad Enter'],
+  ['NUM_PLUS', 'Numpad +  plus'], ['NUM_MINUS', 'Numpad -  minus'],
+  ['NUM_ASTERISK', 'Numpad *  multiply'], ['NUM_SLASH', 'Numpad /  divide'],
+];
 const media = [
   ['VOL_UP', 'Volume up'], ['VOL_DOWN', 'Volume down'], ['MUTE', 'Mute'],
   ['PLAY', 'Play / pause'], ['STOP', 'Stop'], ['NEXT', 'Next track'],
@@ -651,7 +712,8 @@ const modifiersOnly = [
 
 const KEY_GROUPS = [
   ['Letters', letters],
-  ['Digits', digits],
+  ['Digits (number row)', digits],
+  ['Numeric keypad', numpad],
   ['Punctuation', punctuation],
   ['Function keys', functions],
   ['Navigation and editing', navigation],
@@ -795,6 +857,22 @@ $('save').onclick = async e => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? 'save failed');
     say($('msg'), 'Saved. Screens and key bindings apply immediately.');
+  } catch (err) {
+    say($('msg'), err.message);
+  }
+  e.target.disabled = false;
+};
+
+$('reset').onclick = async e => {
+  if (!confirm('Reset all settings to defaults, including the saved WiFi networks?')) return;
+
+  e.target.disabled = true;
+  say($('msg'), 'Resetting...', 0);
+  try {
+    const response = await fetch('/api/config/reset', { method: 'POST' });
+    if (!response.ok) throw new Error('reset failed');
+    await loadConfig();
+    say($('msg'), 'Reset. Key bindings are now the numeric keypad.');
   } catch (err) {
     say($('msg'), err.message);
   }

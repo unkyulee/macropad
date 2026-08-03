@@ -12,7 +12,6 @@ void InitScreen_setup(int slot)
 
     TFT_eSPI &tft = display_tft();
 
-    display_header("STARTING UP");
     display_clear_body();
 
     tft.setTextColor(TFT_DARKGREY, TFT_BLACK);

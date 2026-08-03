@@ -8,6 +8,7 @@
 #include "Screens/KeymapScreen.h"
 #include "Screens/GifScreen.h"
 #include "Screens/CalculatorScreen.h"
+#include "Screens/InfoScreen.h"
 #include "keyboard/BLE/BLEKeypad.h"
 
 #include <SPI.h>
@@ -20,6 +21,13 @@ static const Screen CLOCK_SCREEN = {ClockScreen_setup, ClockScreen_render, Clock
 static const Screen KEYMAP_SCREEN = {KeymapScreen_setup, KeymapScreen_render, KeymapScreen_key};
 static const Screen GIF_SCREEN = {GifScreen_setup, GifScreen_render, GifScreen_key};
 static const Screen CALC_SCREEN = {CalculatorScreen_setup, CalculatorScreen_render, CalculatorScreen_key};
+static const Screen INFO_SCREEN = {InfoScreen_setup, InfoScreen_render, InfoScreen_key};
+
+// Virtual slot after the configured screens: the knob button lands here
+// once it has been through every enabled screen. Always available, so
+// the network details stay reachable even with no screen enabled.
+#define INFO_SLOT SCREEN_COUNT
+#define CYCLE_LENGTH (SCREEN_COUNT + 1)
 
 static const Screen *_active = &INIT_SCREEN;
 static int _slot = -1;
@@ -29,51 +37,51 @@ TFT_eSPI &display_tft()
     return tft;
 }
 
-// Shared chrome so a screen change never leaves half the old layout on
-// the panel: header strip on top, everything below it belongs to the screen.
-void display_header(const char *title)
+// Name of the active screen, from config, so you can tell at a glance
+// which of the five you are looking at.
+static char _title[24] = "";
+
+// rule colour, a very dark grey
+#define FOOTER_RULE 0x2124
+
+int display_body_bottom()
 {
-    tft.fillRect(0, 0, tft.width(), BODY_TOP - 2, TFT_NAVY);
-    tft.setTextDatum(TL_DATUM);
-    tft.setTextColor(TFT_WHITE, TFT_NAVY);
-    tft.drawString(title, 8, 7, 2);
+    return tft.height() - FOOTER_HEIGHT;
 }
 
 void display_clear_body()
 {
-    tft.fillRect(0, BODY_TOP - 2, tft.width(), tft.height() - BODY_TOP + 2, TFT_BLACK);
+    tft.fillRect(0, 0, tft.width(), display_body_bottom(), TFT_BLACK);
     tft.setTextDatum(TL_DATUM);
     tft.setTextPadding(0);
 }
 
-// Status strip drawn into the right hand side of the header, so every
-// screen shows the link state without having to draw it itself.
-static void display_status_strip()
+// Screen name on the left, link state on the right, a single rule above.
+// Drawn here rather than by each screen so they all match.
+static void display_footer()
 {
     AppStatus &app = status();
 
-    static bool lastWifi = false;
-    static bool lastAp = false;
-    static bool lastBle = false;
+    int top = display_body_bottom();
 
-    if (app.wifiConnected == lastWifi && app.apMode == lastAp && app.bleConnected == lastBle)
-        return;
+    tft.fillRect(0, top, tft.width(), FOOTER_HEIGHT, TFT_BLACK);
+    tft.drawFastHLine(0, top, tft.width(), FOOTER_RULE);
 
-    lastWifi = app.wifiConnected;
-    lastAp = app.apMode;
-    lastBle = app.bleConnected;
-
-    tft.setTextDatum(TR_DATUM);
-    tft.setTextPadding(150);
-
-    uint16_t wifiColour = app.apMode ? TFT_ORANGE : (app.wifiConnected ? TFT_GREEN : TFT_DARKGREY);
-    String text = String(app.apMode ? "AP" : (app.wifiConnected ? "WIFI" : "----"));
-    text += app.bleConnected ? "  BLE" : "  ---";
-
-    tft.setTextColor(wifiColour, TFT_NAVY);
-    tft.drawString(text, tft.width() - 8, 7, 2);
+    int textY = top + 6;
 
     tft.setTextPadding(0);
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(TFT_SILVER, TFT_BLACK);
+    tft.drawString(_title, 8, textY, 1);
+
+    uint16_t wifiColour = app.apMode ? TFT_ORANGE : (app.wifiConnected ? TFT_GREEN : TFT_DARKGREY);
+    String state = String(app.apMode ? "AP" : (app.wifiConnected ? "WIFI" : "----"));
+    state += app.bleConnected ? "  BLE" : "  ---";
+
+    tft.setTextDatum(TR_DATUM);
+    tft.setTextColor(wifiColour, TFT_BLACK);
+    tft.drawString(state, tft.width() - 8, textY, 1);
+
     tft.setTextDatum(TL_DATUM);
 }
 
@@ -90,6 +98,9 @@ static const Screen *screen_for(const String &type)
 
 static bool slot_enabled(int slot)
 {
+    if (slot == INFO_SLOT)
+        return true; // not configurable, never skipped
+
     if (slot < 0 || slot >= SCREEN_COUNT)
         return false;
 
@@ -111,34 +122,49 @@ static void activate(int slot)
     if (slot < 0)
     {
         _active = &INIT_SCREEN;
+        strlcpy(_title, "STARTING UP", sizeof(_title));
+    }
+    else if (slot == INFO_SLOT)
+    {
+        _active = &INFO_SCREEN;
+        strlcpy(_title, "info", sizeof(_title));
     }
     else
     {
         config_lock();
         String type = config()["screens"][slot]["type"].as<String>();
+        String name = config()["screens"][slot]["name"].as<String>();
         config_unlock();
 
         _active = screen_for(type);
-        _log("Screen %d: %s\n", slot, type.c_str());
+
+        // the name is what identifies the screen, the type is only a
+        // fallback for a slot that was never named
+        name.trim();
+        strlcpy(_title, name.length() ? name.c_str() : type.c_str(), sizeof(_title));
+
+        _log("Screen %d: %s (%s)\n", slot, _title, type.c_str());
     }
 
     _active->setup(slot);
+    display_footer();
 
     // the keymap belongs to the screen, so the BLE bindings change with it
     ble_reload();
 
-    // force the header strip to repaint over the new chrome
+    // make sure the footer picks up the current link state
     status().dirty = true;
 }
 
 void display_next_screen()
 {
-    // walk forward to the next enabled slot, wrapping around
-    for (int step = 1; step <= SCREEN_COUNT; step++)
+    // walk forward to the next enabled slot, wrapping around through the
+    // info screen that sits at the end of the cycle
+    for (int step = 1; step <= CYCLE_LENGTH; step++)
     {
-        int candidate = (_slot + step) % SCREEN_COUNT;
+        int candidate = (_slot + step) % CYCLE_LENGTH;
         if (candidate < 0)
-            candidate += SCREEN_COUNT;
+            candidate += CYCLE_LENGTH;
 
         if (slot_enabled(candidate))
         {
@@ -147,17 +173,8 @@ void display_next_screen()
         }
     }
 
-    // nothing is enabled: keep whatever is on screen, but if we are still
-    // on the init screen there is nothing to fall back to
-    if (_slot < 0)
-    {
-        display_header("NO SCREENS");
-        display_clear_body();
-        tft.setTextColor(TFT_ORANGE, TFT_BLACK);
-        tft.drawString("No screen is enabled", 20, BODY_TOP + 40, 4);
-        tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        tft.drawString("Enable one from the web interface", 20, BODY_TOP + 80, 2);
-    }
+    // unreachable: the info slot is always enabled, so the loop above
+    // always finds somewhere to go even with every screen turned off
 }
 
 void display_reload()
@@ -199,7 +216,7 @@ void display_loop()
     if (app.dirty)
     {
         app.dirty = false;
-        display_status_strip();
+        display_footer();
     }
 
     _active->render(_slot);

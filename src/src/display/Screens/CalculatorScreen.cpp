@@ -77,15 +77,32 @@ void CalculatorScreen_setup(int slot)
         String action = keys[i].as<String>();
         action.trim();
 
-        // only single character bindings can be calculator keys, plus the
-        // spelled out clear key
+        action.toUpperCase();
+
+        // single character bindings, the spelled out keys, and the numeric
+        // keypad names - the numpad is the default keymap, so without these
+        // the calculator would ignore every key on a stock configuration
         if (action.length() == 1)
             _keys[i] = action.charAt(0);
-        else if (action.equalsIgnoreCase("CLEAR") || action.equalsIgnoreCase("ESC"))
-            _keys[i] = 'C';
-        else if (action.equalsIgnoreCase("ENTER") || action.equalsIgnoreCase("RETURN"))
+        else if (action.startsWith("NUM_") && action.length() == 5 &&
+                 action.charAt(4) >= '0' && action.charAt(4) <= '9')
+            _keys[i] = action.charAt(4);
+        else if (action == "NUM_PERIOD")
+            _keys[i] = '.';
+        else if (action == "NUM_PLUS")
+            _keys[i] = '+';
+        else if (action == "NUM_MINUS")
+            _keys[i] = '-';
+        else if (action == "NUM_ASTERISK")
+            _keys[i] = '*';
+        else if (action == "NUM_SLASH")
+            _keys[i] = '/';
+        else if (action == "NUM_ENTER" || action == "ENTER" || action == "RETURN")
             _keys[i] = '=';
-        else if (action.equalsIgnoreCase("BACKSPACE"))
+        // Num Lock sits where a clear key would be on the default layout
+        else if (action == "NUM_LOCK" || action == "CLEAR" || action == "ESC")
+            _keys[i] = 'C';
+        else if (action == "BACKSPACE")
             _keys[i] = '<';
         else
             _keys[i] = 0;
@@ -94,7 +111,6 @@ void CalculatorScreen_setup(int slot)
 
     reset();
 
-    display_header("CALCULATOR");
     display_clear_body();
 }
 

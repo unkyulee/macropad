@@ -20,9 +20,17 @@ void display_reload();
 // Shared panel handle for the individual screens.
 TFT_eSPI &display_tft();
 
-// Helpers the screens use so they all look like part of the same device.
-void display_header(const char *title);
+// Clears the drawing area, leaving the footer alone. Screens call this
+// from their setup().
 void display_clear_body();
 
-// y coordinate where the body area starts, below the header
-#define BODY_TOP 34
+// The screen name and link state live in a footer that display.cpp draws
+// and keeps up to date, separated from the body by a single rule rather
+// than sitting in a filled bar.
+#define FOOTER_HEIGHT 20
+
+// small top margin for the body area
+#define BODY_TOP 4
+
+// first y coordinate the body must not draw on
+int display_body_bottom();

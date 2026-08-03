@@ -127,7 +127,6 @@ void GifScreen_setup(int slot)
     String path = config()["screens"][slot]["file"].as<String>();
     config_unlock();
 
-    display_header("GIF");
     display_clear_body();
 
     GifScreen_close();
@@ -158,7 +157,7 @@ void GifScreen_setup(int slot)
 
     // centre it in the body area
     _offsetX = (tft.width() - _gif.getCanvasWidth()) / 2;
-    _offsetY = BODY_TOP + (tft.height() - BODY_TOP - _gif.getCanvasHeight()) / 2;
+    _offsetY = BODY_TOP + (display_body_bottom() - BODY_TOP - _gif.getCanvasHeight()) / 2;
     if (_offsetX < 0)
         _offsetX = 0;
     if (_offsetY < BODY_TOP)

@@ -224,6 +224,17 @@ static void handle_gif_delete()
     server.send(ok ? 200 : 404, "application/json", ok ? "{\"ok\":true}" : "{\"error\":\"not found\"}");
 }
 
+// The stored config wins over the built-in defaults on every boot, so a
+// firmware update that changes the default keymap has no effect until this
+// is called.
+static void handle_config_reset()
+{
+    config_reset();
+    status().configReload = true;
+
+    server.send(200, "application/json", "{\"ok\":true}");
+}
+
 static void handle_wifi_scan()
 {
     int found = WiFi.scanNetworks();
@@ -266,6 +277,7 @@ void webui_setup()
     server.on("/api/status", HTTP_GET, handle_status);
     server.on("/api/config", HTTP_GET, handle_config_get);
     server.on("/api/config", HTTP_POST, handle_config_post);
+    server.on("/api/config/reset", HTTP_POST, handle_config_reset);
     server.on("/api/wifi/scan", HTTP_GET, handle_wifi_scan);
     server.on("/api/gif", HTTP_GET, handle_gif_list);
     server.on("/api/gif", HTTP_DELETE, handle_gif_delete);

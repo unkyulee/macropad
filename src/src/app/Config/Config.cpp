@@ -51,23 +51,49 @@ static void config_defaults()
         JsonObject screen = screens.add<JsonObject>();
         screen["enabled"] = (i == 0); // one screen on, the rest waiting
         screen["type"] = (i == 0) ? SCREEN_CLOCK : SCREEN_KEYMAP;
+
+        // shown in the footer, so you can tell which screen you are on
+        char name[16];
+        snprintf(name, sizeof(name), "Screen %d", i + 1);
+        screen["name"] = (i == 0) ? "Clock" : name;
+
         screen["tz"] = "UTC0";
         screen["tzName"] = "UTC";
         screen["file"] = "";
 
-        // F13-F24 are unused by every OS, which makes them the safe default
-        // for a macro pad: bind them to whatever you like on the host side.
+        // Laid out like a real numeric keypad, which is what the 4x5 grid
+        // physically resembles:
+        //
+        //   NumLk   /   *   -
+        //     7     8   9   +
+        //     4     5   6  (knob button)
+        //     1     2   3  Enter
+        //     0        (.)
+        //
+        // Key 11 stays empty because that is the knob button, which cycles
+        // screens rather than sending anything. Keys 17 and 19 are empty
+        // because the bottom row of the PCB is only populated at 16 and 18.
         static const char *defaults[KEY_COUNT] = {
-            "F13", "F14", "F15", "F16",
-            "F17", "F18", "F19", "F20",
-            "F21", "F22", "F23", "",
-            "CTRL+C", "CTRL+V", "CTRL+Z", "CTRL+SHIFT+Z",
-            "MUTE", "", "PLAY", ""};
+            "NUM_LOCK", "NUM_SLASH", "NUM_ASTERISK", "NUM_MINUS",
+            "NUM_7", "NUM_8", "NUM_9", "NUM_PLUS",
+            "NUM_4", "NUM_5", "NUM_6", "",
+            "NUM_1", "NUM_2", "NUM_3", "NUM_ENTER",
+            "NUM_0", "", "NUM_PERIOD", ""};
 
         JsonArray keys = screen["keys"].to<JsonArray>();
         for (int k = 0; k < KEY_COUNT; k++)
             keys.add(defaults[k]);
     }
+}
+
+void config_reset()
+{
+    config_lock();
+    config_defaults();
+    config_unlock();
+
+    config_save();
+    _log("Config reset to defaults\n");
 }
 
 bool config_load()

@@ -4,6 +4,14 @@
 
 #include <BleKeyboard.h>
 
+// BleKeyboard.h has no Num Lock constant. Its non-printing keys are
+// encoded as the HID usage plus 136 (see BleKeyboard::press), and Num Lock
+// is usage 0x53, so 0xDB - which lands immediately before the library's
+// own KEY_NUM_SLASH (0xDC, usage 0x54), matching the HID table order.
+#ifndef KEY_NUM_LOCK
+#define KEY_NUM_LOCK 0xDB
+#endif
+
 static BleKeyboard bleKeyboard;
 static bool _enabled = false;
 
@@ -45,6 +53,19 @@ static const NamedKey namedKeys[] = {
     {"UP", KEY_UP_ARROW},         {"DOWN", KEY_DOWN_ARROW},
     {"LEFT", KEY_LEFT_ARROW},     {"RIGHT", KEY_RIGHT_ARROW},
     {"CAPSLOCK", KEY_CAPS_LOCK},  {"PRTSC", KEY_PRTSC},
+
+    // The numeric keypad sends its own HID codes, distinct from the number
+    // row: NUM_1 is not '1'. The difference matters - Alt plus a sequence
+    // of numpad digits is how Windows enters characters by code point, and
+    // that only works with these, never with the digits above the letters.
+    {"NUM_LOCK", KEY_NUM_LOCK},
+    {"NUM_0", KEY_NUM_0}, {"NUM_1", KEY_NUM_1}, {"NUM_2", KEY_NUM_2},
+    {"NUM_3", KEY_NUM_3}, {"NUM_4", KEY_NUM_4}, {"NUM_5", KEY_NUM_5},
+    {"NUM_6", KEY_NUM_6}, {"NUM_7", KEY_NUM_7}, {"NUM_8", KEY_NUM_8},
+    {"NUM_9", KEY_NUM_9},
+    {"NUM_SLASH", KEY_NUM_SLASH},       {"NUM_ASTERISK", KEY_NUM_ASTERISK},
+    {"NUM_MINUS", KEY_NUM_MINUS},       {"NUM_PLUS", KEY_NUM_PLUS},
+    {"NUM_ENTER", KEY_NUM_ENTER},       {"NUM_PERIOD", KEY_NUM_PERIOD},
 };
 
 // name -> media key report
@@ -169,9 +190,24 @@ void ble_reload()
 
     JsonDocument &cfg = config();
 
+    // The init screen and the info screen have no keymap of their own, and
+    // the init screen stays up for as long as the pad is in access point
+    // mode. Borrowing the first enabled screen's map keeps the keys working
+    // while either of them is showing.
+    if (slot < 0 || slot >= SCREEN_COUNT)
+    {
+        for (int i = 0; i < SCREEN_COUNT; i++)
+        {
+            if (cfg["screens"][i]["enabled"].as<bool>())
+            {
+                slot = i;
+                break;
+            }
+        }
+    }
+
     for (int i = 0; i < KEY_COUNT; i++)
     {
-        // nothing is bound while the init screen is up
         if (slot < 0)
             _keys[i] = KeyAction();
         else

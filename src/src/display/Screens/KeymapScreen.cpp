@@ -33,12 +33,21 @@ static void draw_cell(int index, bool active)
     if (label.length() == 0)
         label = "-";
 
-    // the cell is narrow, so drop the modifier prefixes before truncating:
-    // "CTRL+SHIFT+Z" reads better as "^+Z" than as "CTRL+S"
+    // the cell is narrow, so shorten the long prefixes before truncating:
+    // "CTRL+SHIFT+Z" reads better as "^@Z" than as "CTRL+S", and
+    // "NUM_ASTERISK" as "N*" rather than "NUM_AST"
     label.replace("CTRL+", "^");
     label.replace("SHIFT+", "@");
     label.replace("ALT+", "!");
     label.replace("GUI+", "#");
+    label.replace("NUM_LOCK", "NLOCK");
+    label.replace("NUM_ASTERISK", "N*");
+    label.replace("NUM_SLASH", "N/");
+    label.replace("NUM_MINUS", "N-");
+    label.replace("NUM_PLUS", "N+");
+    label.replace("NUM_PERIOD", "N.");
+    label.replace("NUM_ENTER", "N ENT");
+    label.replace("NUM_", "N");
     if (label.length() > 7)
         label = label.substring(0, 7);
 
@@ -56,7 +65,6 @@ void KeymapScreen_setup(int slot)
         _labels[i] = keys[i].as<String>();
     config_unlock();
 
-    display_header("KEYMAP");
     display_clear_body();
 
     _highlight = -1;

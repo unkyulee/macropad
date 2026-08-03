@@ -25,6 +25,11 @@ void config_setup();
 bool config_load();
 bool config_save();
 
+// Replace everything with the factory defaults and write them out. The
+// stored file wins over the built-in defaults on every boot, so this is
+// the only way to pick up a changed default keymap.
+void config_reset();
+
 // The live configuration document. It is read from the input core and
 // written from the network core, so every access must be wrapped in
 // config_lock() / config_unlock().

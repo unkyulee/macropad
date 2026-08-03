@@ -1,6 +1,7 @@
 #include "Wifi.h"
 #include "app/app.h"
 #include "app/Config/Config.h"
+#include "service/Time/Ntp.h"
 
 #include <WiFi.h>
 
@@ -91,6 +92,10 @@ static bool connect_to(const String &ssid, const String &password)
     _log("Connected to '%s', IP %s\n", ssid.c_str(), WiFi.localIP().toString().c_str());
     publish_state(true, false, WiFi.localIP(), ssid.c_str());
     say("connected");
+
+    // the clock can only be right once there is a route out
+    ntp_begin();
+
     return true;
 }
 
@@ -223,7 +228,10 @@ void wifi_loop()
     if (connected != app.wifiConnected)
     {
         if (connected)
+        {
             publish_state(true, false, WiFi.localIP(), NULL);
+            ntp_begin();
+        }
         else
         {
             _log("WiFi lost\n");
