@@ -1,5 +1,7 @@
 #include "Keypad.h"
 #include "app/app.h"
+#include "app/Config/Config.h"
+#include "display/display.h"
 #include "keyboard/BLE/BLEKeypad.h"
 
 #include <Adafruit_Keypad.h>
@@ -37,9 +39,27 @@ static const char labels[ROWS * COLS] = {
 
 static Adafruit_Keypad keypad = Adafruit_Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
+// Which physical key advances the screen. Defaults to 11, the knob push
+// button, and is cached because it is read on every key event.
+static int _screenKey = 11;
+
+int keypad_screen_key()
+{
+    return _screenKey;
+}
+
+void keypad_reload()
+{
+    config_lock();
+    _screenKey = config()["general"]["screenKey"] | 11;
+    config_unlock();
+}
+
 //
 void keypad_setup()
 {
+    keypad_reload();
+
     keypad.begin();
     _log("Keypad initialized (%dx%d)\n", ROWS, COLS);
 }
@@ -70,6 +90,21 @@ void keypad_loop()
 
         _debug("[keypad] key %d '%c' %s\n", index, app.label,
                app.pressed ? "pressed" : "released");
+
+        // the knob button cycles screens rather than sending a keystroke
+        if (index == keypad_screen_key())
+        {
+            if (app.pressed)
+            {
+                app.booting = false;
+                display_next_screen();
+            }
+            continue;
+        }
+
+        // screens such as the calculator consume their keys locally
+        if (display_key(index, app.pressed))
+            continue;
 
         // forward to the host over BLE, no-op while unpaired
         ble_key(index, app.pressed);
