@@ -3,6 +3,9 @@
 #include "app/Config/Config.h"
 
 #include <BleKeyboard.h>
+#include <nvs.h>
+#include <string.h>
+#include <vector>
 
 // BleKeyboard.h has no Num Lock constant. Its non-printing keys are
 // encoded as the HID usage plus 136 (see BleKeyboard::press), and Num Lock
@@ -247,6 +250,74 @@ void ble_reload()
     _debug("[ble] keymap reloaded for screen %d\n", slot);
 }
 
+// NimBLE restores its bonds from NVS inside begin(), before advertising
+// starts. It asks NVS how large each stored record is and then reads that
+// many bytes into a stack local sized by *this* build's structs
+// (ble_store_nvs.c, get_nvs_db_value) - the destination size is never
+// checked against the record. A record written by a different NimBLE, whose
+// ble_store_value_sec has since grown fields, therefore overruns the frame
+// and trips the stack protector. That abort happens on every boot and the
+// pad never reaches loop(), so the only way out is erasing NVS over serial.
+//
+// Dropping the records this build cannot read turns that brick into a
+// re-pair. Only the three key kinds it actually restores are checked;
+// p_dev_rec entries belong to the host based privacy store, which is
+// compiled out here and so is never read.
+static void purge_unreadable_bonds()
+{
+    static const char *NIMBLE_BOND_NAMESPACE = "nimble_bond";
+
+    nvs_iterator_t it = nvs_entry_find(NVS_DEFAULT_PART_NAME,
+                                       NIMBLE_BOND_NAMESPACE, NVS_TYPE_BLOB);
+    if (it == NULL)
+        return; // nothing has ever paired
+
+    nvs_handle_t handle;
+    if (nvs_open(NIMBLE_BOND_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK)
+    {
+        nvs_release_iterator(it);
+        return;
+    }
+
+    // erasing invalidates the iterator, so collect the keys and erase after
+    std::vector<String> unreadable;
+
+    while (it != NULL)
+    {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        it = nvs_entry_next(it);
+
+        if (strncmp(info.key, "p_dev_rec", 9) == 0)
+            continue;
+
+        // a NULL destination asks for the stored size without reading it,
+        // which is the same call NimBLE makes before its unchecked read
+        size_t size = 0;
+        if (nvs_get_blob(handle, info.key, NULL, &size) != ESP_OK)
+            continue;
+
+        if (size > sizeof(union ble_store_value))
+        {
+            _log("[ble] dropping bond '%s': stored %u bytes, this build reads %u\n",
+                 info.key, (unsigned)size, (unsigned)sizeof(union ble_store_value));
+            unreadable.push_back(String(info.key));
+        }
+    }
+
+    for (const String &key : unreadable)
+        nvs_erase_key(handle, key.c_str());
+
+    if (unreadable.size() > 0)
+    {
+        nvs_commit(handle);
+        _log("[ble] %u incompatible bond record(s) cleared, pair again\n",
+             (unsigned)unreadable.size());
+    }
+
+    nvs_close(handle);
+}
+
 void ble_setup()
 {
     config_lock();
@@ -264,6 +335,9 @@ void ble_setup()
 
     if (name.length() == 0)
         name = "Macro Pad";
+
+    // has to run before begin(), which is where the bonds are restored
+    purge_unreadable_bonds();
 
     bleKeyboard.setName(name.c_str());
     bleKeyboard.begin();
