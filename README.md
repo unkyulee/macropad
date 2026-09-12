@@ -1,5 +1,7 @@
 # Macro Pad 
 
+<img src="./images/004.jpeg" />
+
 This is a number pad that also works as a macro pad. You can assign a different function to each key and save up to five different configurations.
 
 I adjusted the overall dimensions and repositioned the knob to give it better proportions. I really like its size. It is quite chunky and has a strong presence on the desk. Since a number pad is usually idle most of the time, the screen displays a clock when it is not being used.
@@ -13,6 +15,8 @@ It is a small device, but it has brought a noticeable improvement to my quality 
 The STL files and firmware are available in this repository
 
 Un Kyu Lee
+
+<img src="./images/003.jpeg" />
 
 ## Default screens
 
