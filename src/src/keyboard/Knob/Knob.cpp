@@ -4,7 +4,6 @@
 
 #include <RotaryEncoder.h>
 
-// TODO: placeholder pins - replace with the real EC11 wiring.
 #define KNOB_PIN_A 21
 #define KNOB_PIN_B 20
 
@@ -44,7 +43,7 @@ void knob_loop()
     app.dirty = true;
     lastPos = pos;
 
-    _debug("[knob] position %ld direction %d\n", app.knob, app.knobDelta);
+    _log("[knob] position %ld direction %d\n", app.knob, app.knobDelta);
 
     ble_knob(app.knobDelta);
 }
