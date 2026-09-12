@@ -49,17 +49,21 @@ static void config_defaults()
     for (int i = 0; i < SCREEN_COUNT; i++)
     {
         JsonObject screen = screens.add<JsonObject>();
-        screen["enabled"] = (i == 0); // one screen on, the rest waiting
-        screen["type"] = (i == 0) ? SCREEN_CLOCK : SCREEN_KEYMAP;
+        screen["enabled"] = (i < 3);
+        screen["type"] = (i == 0) ? SCREEN_CLOCK :
+                         (i == 1) ? SCREEN_GIF :
+                         (i == 2) ? SCREEN_CALCULATOR : SCREEN_KEYMAP;
 
         // shown in the footer, so you can tell which screen you are on
         char name[16];
         snprintf(name, sizeof(name), "Screen %d", i + 1);
-        screen["name"] = (i == 0) ? "Clock" : name;
+        screen["name"] = (i == 0) ? "Numpad" :
+                         (i == 1) ? "YouTube" :
+                         (i == 2) ? "Calculator" : name;
 
         screen["tz"] = "UTC0";
         screen["tzName"] = "UTC";
-        screen["file"] = "";
+        screen["file"] = (i == 1) ? "/gif/youtube.gif" : "";
 
         // Laid out like a real numeric keypad, which is what the 4x5 grid
         // physically resembles:
@@ -80,9 +84,18 @@ static void config_defaults()
             "NUM_1", "NUM_2", "NUM_3", "NUM_ENTER",
             "NUM_0", "", "NUM_PERIOD", ""};
 
+        // 8/2 select the previous/next video; 4/6 seek by ten seconds.
+        // Shift+P is supported by YouTube only within a playlist.
+        static const char *youtube[KEY_COUNT] = {
+            "ESC", "c", "m", "DOWN",
+            "HOME", "SHIFT+p", "f", "UP",
+            "j", "k", "l", "",
+            "SHIFT+,", "SHIFT+n", "SHIFT+.", "f",
+            "SPACE", "", "t", ""};
+
         JsonArray keys = screen["keys"].to<JsonArray>();
         for (int k = 0; k < KEY_COUNT; k++)
-            keys.add(defaults[k]);
+            keys.add((i == 1) ? youtube[k] : defaults[k]);
     }
 }
 

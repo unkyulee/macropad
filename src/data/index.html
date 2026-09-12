@@ -289,7 +289,7 @@
       <button class="btn danger" id="reset">Reset to defaults</button>
     </div>
     <p class="hint">Reset restores the factory configuration, including the
-    numeric keypad key bindings. It also clears the saved WiFi networks, so the
+    Numpad, YouTube remote, and Calculator screens. It also clears the saved WiFi networks, so the
     pad will come back up as an access point. The stored configuration always
     wins over the built-in defaults, so this is the only way to pick up a
     default keymap that changed in a firmware update.</p>
@@ -873,7 +873,7 @@ $('reset').onclick = async e => {
     const response = await fetch('/api/config/reset', { method: 'POST' });
     if (!response.ok) throw new Error('reset failed');
     await loadConfig();
-    say($('msg'), 'Reset. Key bindings are now the numeric keypad.');
+    say($('msg'), 'Reset. Screens are now Numpad, YouTube, and Calculator.');
   } catch (err) {
     say($('msg'), err.message);
   }

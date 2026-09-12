@@ -14,6 +14,54 @@ The STL files and firmware are available in this repository
 
 Un Kyu Lee
 
+## Default screens
+
+Press the knob to cycle through **Numpad → YouTube → Calculator → device info**.
+Slots 4 and 5 are disabled until you enable them in the web interface. Turning the knob adjusts
+the host volume on every screen.
+
+1. **Numpad:** standard numeric keypad bindings, with the clock on the display.
+2. **YouTube:** remote bindings and an animated red play button, with a
+   keypad guide baked into the GIF showing the default actions. These labels
+   are part of the image and do not change when you edit key bindings. Upload
+   `src/data/gif/youtube.gif` through the web interface and select it for this
+   screen. The default file path is `/gif/youtube.gif`; the firmware contains
+   no embedded YouTube image. If the screen previously used the built-in GIF,
+   select the uploaded file in its settings and save.
+3. **Calculator:** standalone arithmetic using the printed digits and operators.
+   Enter evaluates, Num Lock clears, and the decimal key enters a decimal point.
+
+YouTube bindings (labels refer to the physical keycaps):
+
+| Key | Action |
+| --- | --- |
+| `0` | Play/pause using Space |
+| `4` / `6` | Rewind / forward 10 seconds |
+| `8` / `2` | Previous / next video |
+| `5` | Play/pause using K |
+| `7` | Seek to the beginning |
+| `9` or Enter | Toggle fullscreen |
+| `1` / `3` | Slower / faster playback |
+| `/` | Toggle captions |
+| `*` | Toggle mute |
+| `-` / `+` | Lower / raise player volume |
+| `.` | Toggle theater mode |
+| Num Lock | Exit fullscreen |
+
+Click the YouTube player first so it receives the shortcuts. Previous video
+(`Shift+P`) works within a playlist; next video (`Shift+N`) also works with
+suggested videos. These bindings target the desktop web player; see
+[YouTube's keyboard shortcuts](https://support.google.com/youtube/answer/7631406?hl=en).
+
+Existing `/config.json` settings are preserved when updating the firmware. To
+apply these factory defaults to an already configured device, use **Reset to
+defaults** in the web interface after updating. This also resets saved Wi-Fi
+networks and other custom settings, so save anything you want to keep first.
+Alternatively, edit the three screen slots manually to preserve other settings.
+
+The bundled GIF source is `src/scripts/generate_youtube_gif.py`; running it with
+Python regenerates `src/data/gif/youtube.gif` for upload.
+
 # Bill of Material
 
 * [ILI9341 2.8" TFT LCD (240x320)](https://ko.aliexpress.com/item/1005006323532762.html)
