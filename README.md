@@ -1,5 +1,18 @@
-# macropad 
+# Macro Pad 
 
+This is a number pad that also works as a macro pad. You can assign a different function to each key and save up to five different configurations.
+
+I adjusted the overall dimensions and repositioned the knob to give it better proportions. I really like its size. It is quite chunky and has a strong presence on the desk. Since a number pad is usually idle most of the time, the screen displays a clock when it is not being used.
+
+The screen can also play GIFs or turn the device into a standalone calculator. It connects to a PC or phone via Bluetooth Low Energy (BLE).
+
+It solves several problems for me. I can type numbers much more comfortably, and most importantly, I can control movie playback from a distance, including playing and pausing, without having to reach for the keyboard.
+
+It is a small device, but it has brought a noticeable improvement to my quality of life.
+
+The STL files and firmware are available in this repository
+
+Un Kyu Lee
 
 # Bill of Material
 
@@ -95,101 +108,13 @@ driven, columns are read; the knob's A/B ride the same ribbon.
                        │     Uxx      Dxx
 ```
 
-`CN2` is a 12-pin Molex 22035125; the pin order above is the net count, not a verified
-pinout — check it against the silkscreen before crimping.
+[PCB Schematic](./PCB/Schematic.pdf)
+
 
 ### Physical layout
 
-Keys sit on a 19.1 mm (0.75") grid. Three are oversized, which is why 17 switches fill 20
-grid positions:
+<img src="./images/001.png" />
 
-```
-   ┌──────┬──────┬──────┬──────┐
-   │  U1  │  U2  │  U3  │  U4  │  row 1
-   ├──────┼──────┼──────┼──────┤
-   │  U5  │  U6  │  U7  │      │  row 2
-   ├──────┼──────┼──────┤  U8  │        U8, U15  2U vertical
-   │  U9  │ U10  │ U11  │      │  row 3
-   ├──────┼──────┼──────┼──────┤
-   │ U12  │ U13  │ U14  │      │  row 4
-   ├──────┴──────┼──────┤ U15  │        U16      2U horizontal
-   │     U16     │ U17  │      │  row 5
-   └─────────────┴──────┴──────┘
-                                  ← EC11 knob mounts off the right edge
-```
-
-### Key index map
-
-Each cell is **index** · designator · label, as reported by `keypad_loop()` and mapped
-through `labels[]` in [Keypad.cpp](src/src/keyboard/Keypad/Keypad.cpp):
-
-|           | `COL 1`        | `COL 2`      | `COL 3`       | `COL 4`        |
-| --------- | -------------- | ------------ | ------------- | -------------- |
-| **`ROW 1`** | **0** · U1 · `1`  | **1** · U2 · `2`  | **2** · U3 · `3`  | **3** · U4 · `4`   |
-| **`ROW 2`** | **4** · U5 · `5`  | **5** · U6 · `6`  | **6** · U7 · `7`  | **7** · U8 · `8`   |
-| **`ROW 3`** | **8** · U9 · `9`  | **9** · U10 · `A` | **10** · U11 · `B` | **11** · knob SW   |
-| **`ROW 4`** | **12** · U12 · `D` | **13** · U13 · `E` | **14** · U14 · `F` | **15** · U15 · `G` |
-| **`ROW 5`** | **16** · U16 · `H` | — unused     | **18** · U17 · `I` | — unused       |
-
-Indices **17** and **19** have no switch — they are the second halves of the 2U `U16` and
-`U15` footprints, and carry `0` in `labels[]`. Index **11** is the knob's push button, not a
-key on the grid; it defaults to `screenKey`, so it cycles screens instead of sending a
-keystroke.
-
-### Pins
-
-| Signal | GPIO | Notes |
-| ------ | ---- | ----- |
-| `ROW 1`–`ROW 5` | `1` `2` `42` `41` `40` | Scan outputs |
-| `COL 1`–`COL 4` | `39` `17` `18` `47` | Inputs, pulled up |
-| `KNOB A` / `KNOB B` | `4` / `5` | Encoder quadrature |
-| `GND` | `GND` | Shared return |
-
-These replace the `TODO: placeholder pins` still in the firmware. Three of the placeholders
-cannot stay:
-
-| Placeholder | Problem | Use instead |
-| ----------- | ------- | ----------- |
-| `GPIO 45` (col 2) | Sets `VDD_SPI` and must read low at reset — a pull-up or stuck key here can stop the board booting | `GPIO 17` |
-| `GPIO 48` (col 3) | On-board RGB LED on DevKitC-1 v1.0 (v1.1 moves it to `GPIO 38`, so avoid both) | `GPIO 18` |
-| `GPIO 20` (knob A) | Native USB D+ — `GPIO 19`/`20` are the USB pair | `GPIO 4` / `GPIO 5` |
-
-Rows `1` `2` `40` `41` `42` and col `39` `47` are fine as they stand. Nothing here collides
-with the display's `3` `8`–`14` `46`.
-
-Diode polarity has to match the scan direction: with rows driven low and columns read,
-current flows row → switch → diode → column, so every cathode band faces its column.
-If no key registers but shorting a row to a column by hand does, the diodes run the other
-way — swap `rowPins` and `colPins` in the `Adafruit_Keypad` constructor rather than
-reworking 18 parts.
+<img src="./images/002.jpeg" />
 
 
-## KEYPAD and EC11 rotary encoder
-
-The encoder plugs into `KNOBRIGHT1`, a 5-pin header on the right edge of the keypad PCB.
-Quadrature goes to the ESP32, but the push button is wired into the key matrix — it costs
-no extra GPIO.
-
-```
-        EC11                        Keypad PCB
-        ====                        ==========
-
-        A  (CLK) ───────────────── KNOBRIGHT1 1 ──── CN2 10 ──▶ GPIO 4
-        C  (common) ────────────── KNOBRIGHT1 2 ──── GND
-        B  (DT) ────────────────── KNOBRIGHT1 3 ──── CN2 11 ──▶ GPIO 5
-
-        SW ──┬─────────────────── KNOBRIGHT1 4 ──── ROW 3
-             └── ▶|── D18 ─────── KNOBRIGHT1 5 ──── COL 4
-```
-
-| EC11 pin | Goes to | Notes |
-| -------- | ------- | ----- |
-| `A` / `CLK` | `GPIO 4` | `INPUT_PULLUP`, interrupt on `CHANGE` |
-| `B` / `DT`  | `GPIO 5` | Same; `RotaryEncoder` runs `LatchMode::FOUR3` for one step per detent |
-| `C` | `GND` | Encoder common |
-| `SW` | `ROW 3` × `COL 4` via `D18` | Key index **11** — no dedicated GPIO |
-
-The push button is why the PCB carries 18 diodes for 17 switches: `D18` sits beside the
-knob header rather than under a key. Detents that double-step or skip usually mean the
-latch mode is wrong for the part, not a wiring fault — `FOUR3` suits a detented EC11, and
-`RotaryEncoder` needs both pins on interrupts for `encoder.tick()` to keep up.
