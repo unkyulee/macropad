@@ -2,50 +2,20 @@
 #include "app/app.h"
 #include "app/Config/Config.h"
 
-#include <BleKeyboard.h>
+#include "HidKeyboard.h"
+
+#include <NimBLEBondMigration.h>
+#include <NimBLEDevice.h>
 #include <esp_idf_version.h>
 #include <nvs.h>
 #include <string.h>
 #include <vector>
 
-// BleKeyboard.h has no Num Lock constant. Its non-printing keys are
-// encoded as the HID usage plus 136 (see BleKeyboard::press), and Num Lock
-// is usage 0x53, so 0xDB - which lands immediately before the library's
-// own KEY_NUM_SLASH (0xDC, usage 0x54), matching the HID table order.
-#ifndef KEY_NUM_LOCK
-#define KEY_NUM_LOCK 0xDB
-#endif
-
-// The HID report descriptor already declares the LED output report, and the
-// host writes it whenever a lock key is toggled - that is how a normal
-// keyboard knows to light its Num Lock LED. The library receives the write
-// and then discards it, so this subclass keeps the byte instead.
-#define LED_NUM_LOCK 0x01
-#define LED_CAPS_LOCK 0x02
-#define LED_SCROLL_LOCK 0x04
-
-class LockAwareKeyboard : public BleKeyboard
-{
-public:
-    using BleKeyboard::BleKeyboard;
-
-    // written from the BLE stack task, read from the input loop
-    volatile uint8_t leds = 0;
-
-protected:
-    void onWrite(BLECharacteristic *me) override
-    {
-        std::string value = me->getValue();
-        if (value.length() > 0)
-            leds = (uint8_t)value[0];
-    }
-};
-
-static LockAwareKeyboard bleKeyboard;
+static HidKeyboard bleKeyboard;
 static bool _enabled = false;
 
 // A resolved key binding. Either a normal HID key with optional modifiers,
-// or a media key - the two take different report paths in BleKeyboard.
+// or a media key - the two take different report paths in HidKeyboard.
 struct KeyAction
 {
     uint8_t modifiers[4] = {0, 0, 0, 0};
@@ -264,10 +234,10 @@ void ble_reload()
 // re-pair. Only the three key kinds it actually restores are checked;
 // p_dev_rec entries belong to the host based privacy store, which is
 // compiled out here and so is never read.
+static const char *NIMBLE_BOND_NAMESPACE = "nimble_bond";
+
 static void purge_unreadable_bonds()
 {
-    static const char *NIMBLE_BOND_NAMESPACE = "nimble_bond";
-
     // IDF 5 changed the iterator API to return esp_err_t and take the
     // iterator by pointer; at the end it still releases and NULLs it
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -336,6 +306,39 @@ static void purge_unreadable_bonds()
     nvs_close(handle);
 }
 
+// Bonds made while the firmware ran NimBLE 1.x use a shorter record that
+// lacks bond_count and sign_counter. 2.x reads them without overrunning,
+// but every later field is shifted, so the host fails to re-encrypt and
+// looks paired while never connecting. NimBLE ships a converter for this;
+// it also rewrites local_irk on each call, so it only runs when a 1.x sized
+// record is actually present rather than writing flash on every boot.
+static void migrate_v1_bonds()
+{
+    static const char *const prefixes[] = {"our_sec", "peer_sec"};
+
+    nvs_handle_t handle;
+    if (nvs_open(NIMBLE_BOND_NAMESPACE, NVS_READONLY, &handle) != ESP_OK)
+        return; // nothing has ever paired
+
+    bool legacy = false;
+    char key[16];
+    for (uint16_t i = 1; i <= MYNEWT_VAL(BLE_STORE_MAX_BONDS) && !legacy; i++)
+    {
+        for (const char *prefix : prefixes)
+        {
+            snprintf(key, sizeof(key), "%s_%u", prefix, (unsigned)i);
+            size_t size = 0;
+            if (nvs_get_blob(handle, key, NULL, &size) == ESP_OK &&
+                size == sizeof(NimBLEBondMigration::detail::BleStoreValueSecV1))
+                legacy = true;
+        }
+    }
+    nvs_close(handle);
+
+    if (legacy && NimBLEBondMigration::migrateBondStoreToCurrent())
+        _log("[ble] bonds from the NimBLE 1.x firmware converted\n");
+}
+
 void ble_setup()
 {
     config_lock();
@@ -354,11 +357,11 @@ void ble_setup()
     if (name.length() == 0)
         name = "Macro Pad";
 
-    // has to run before begin(), which is where the bonds are restored
+    // both have to run before begin(), which is where the bonds are restored
+    migrate_v1_bonds();
     purge_unreadable_bonds();
 
-    bleKeyboard.setName(name.c_str());
-    bleKeyboard.begin();
+    bleKeyboard.begin(name.c_str());
 
     _log("BLE keyboard advertising as '%s'\n", name.c_str());
 }
@@ -386,10 +389,15 @@ void ble_loop()
         app.bleConnected = connected;
         app.dirty = true;
         _log("BLE %s\n", connected ? "connected" : "disconnected");
+
+        // a key held through the drop never gets its release sent, and would
+        // otherwise ride along in every report after the host reconnects
+        if (!connected)
+            bleKeyboard.releaseAll();
     }
 
     // lock state is only meaningful while a host is attached to report it
-    uint8_t leds = connected ? bleKeyboard.leds : 0;
+    uint8_t leds = connected ? bleKeyboard.leds() : 0;
     bool numLock = (leds & LED_NUM_LOCK) != 0;
     bool capsLock = (leds & LED_CAPS_LOCK) != 0;
 
