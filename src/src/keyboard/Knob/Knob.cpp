@@ -4,8 +4,8 @@
 
 #include <RotaryEncoder.h>
 
-#define KNOB_PIN_A 21
-#define KNOB_PIN_B 20
+#define KNOB_PIN_A 16
+#define KNOB_PIN_B 15
 
 // FOUR3 is the latch mode for a detented EC11: one step per detent
 static RotaryEncoder encoder(KNOB_PIN_A, KNOB_PIN_B, RotaryEncoder::LatchMode::FOUR3);

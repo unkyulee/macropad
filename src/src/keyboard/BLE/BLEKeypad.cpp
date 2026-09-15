@@ -3,6 +3,7 @@
 #include "app/Config/Config.h"
 
 #include <BleKeyboard.h>
+#include <esp_idf_version.h>
 #include <nvs.h>
 #include <string.h>
 #include <vector>
@@ -267,8 +268,17 @@ static void purge_unreadable_bonds()
 {
     static const char *NIMBLE_BOND_NAMESPACE = "nimble_bond";
 
+    // IDF 5 changed the iterator API to return esp_err_t and take the
+    // iterator by pointer; at the end it still releases and NULLs it
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    nvs_iterator_t it = NULL;
+    if (nvs_entry_find(NVS_DEFAULT_PART_NAME, NIMBLE_BOND_NAMESPACE,
+                       NVS_TYPE_BLOB, &it) != ESP_OK)
+        it = NULL;
+#else
     nvs_iterator_t it = nvs_entry_find(NVS_DEFAULT_PART_NAME,
                                        NIMBLE_BOND_NAMESPACE, NVS_TYPE_BLOB);
+#endif
     if (it == NULL)
         return; // nothing has ever paired
 
@@ -286,7 +296,15 @@ static void purge_unreadable_bonds()
     {
         nvs_entry_info_t info;
         nvs_entry_info(it, &info);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+        if (nvs_entry_next(&it) != ESP_OK)
+        {
+            nvs_release_iterator(it); // no-op on NULL
+            it = NULL;
+        }
+#else
         it = nvs_entry_next(it);
+#endif
 
         if (strncmp(info.key, "p_dev_rec", 9) == 0)
             continue;
