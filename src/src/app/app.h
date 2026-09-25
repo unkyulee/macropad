@@ -60,8 +60,8 @@ FileSystem *gfs();
 
 // Same object, concrete type, for the few callers that need directory
 // listings or free space.
-class FileSystemFAT;
-FileSystemFAT *fatfs();
+class FileSystemLFS;
+FileSystemLFS *storage();
 
 // True once the storage partition is mounted.
 bool fs_ready();

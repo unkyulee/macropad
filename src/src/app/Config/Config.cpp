@@ -1,11 +1,31 @@
 #include "Config.h"
 #include "app/app.h"
 #include "app/FileSystem/FileSystem.h"
+#include <stdarg.h>
+#include <string.h>
 
 #define CONFIG_FILE "/config.json"
+#define CONFIG_TEMP "/config.tmp"
+#define CONFIG_BACKUP "/config.bak"
 
 static JsonDocument _config;
 static SemaphoreHandle_t _lock = nullptr;
+static char _saveError[160] = "";
+
+const char *config_save_error()
+{
+    return _saveError;
+}
+
+static bool save_failed(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    vsnprintf(_saveError, sizeof(_saveError), format, args);
+    va_end(args);
+    _log("Config save failed: %s\n", _saveError);
+    return false;
+}
 
 JsonDocument &config()
 {
@@ -109,28 +129,43 @@ void config_reset()
     _log("Config reset to defaults\n");
 }
 
+static bool read_config(const char *path, JsonDocument &doc)
+{
+    File file = gfs()->open(path, "r");
+    if (!file)
+    {
+        _log("Cannot open %s for reading\n", path);
+        return false;
+    }
+
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+    if (error || !doc.is<JsonObject>())
+    {
+        _log("Cannot load %s: %s\n", path, error ? error.c_str() : "expected an object");
+        return false;
+    }
+    return true;
+}
+
 bool config_load()
 {
     config_lock();
 
     bool loaded = false;
 
-    if (fs_ready() && gfs()->exists(CONFIG_FILE))
+    if (fs_ready())
     {
-        File file = gfs()->open(CONFIG_FILE, "r");
-        if (file)
+        if (gfs()->exists(CONFIG_FILE))
+            loaded = read_config(CONFIG_FILE, _config);
+        if (!loaded && gfs()->exists(CONFIG_BACKUP))
         {
-            DeserializationError error = deserializeJson(_config, file);
-            file.close();
-
-            if (error)
-                _log("config.json is not valid JSON: %s\n", error.c_str());
-            else
-            {
-                _log("Config loaded\n");
-                loaded = true;
-            }
+            loaded = read_config(CONFIG_BACKUP, _config);
+            if (loaded)
+                _log("Config recovered from backup\n");
         }
+        if (loaded)
+            _log("Config loaded (%u WiFi networks)\n", (unsigned)_config["wifi"]["networks"].size());
     }
 
     if (!loaded)
@@ -148,31 +183,129 @@ bool config_load()
     return loaded;
 }
 
-bool config_save()
+// Check the exact bytes sent to storage. Comparing parsed JSON instead can
+// conflate storage failures with changes in numeric representation.
+static bool verify_config_bytes(const String &payload)
 {
-    if (!fs_ready())
+    File file = gfs()->open(CONFIG_TEMP, "r");
+    if (!file)
+        return save_failed("Cannot reopen %s after writing", CONFIG_TEMP);
+
+    size_t actualSize = file.size();
+    if (actualSize != payload.length())
     {
-        _log("Cannot save config, filesystem not mounted\n");
+        file.close();
+        return save_failed("%s size: expected %u, read %u bytes",
+                           CONFIG_TEMP, (unsigned)payload.length(), (unsigned)actualSize);
+    }
+
+    uint8_t buffer[256];
+    size_t offset = 0;
+    while (offset < payload.length())
+    {
+        size_t count = payload.length() - offset;
+        if (count > sizeof(buffer))
+            count = sizeof(buffer);
+        size_t received = file.read(buffer, count);
+        if (received != count)
+        {
+            file.close();
+            return save_failed("%s read at %u: expected %u, got %u bytes",
+                               CONFIG_TEMP, (unsigned)offset, (unsigned)count, (unsigned)received);
+        }
+        if (memcmp(buffer, payload.c_str() + offset, count) != 0)
+        {
+            size_t mismatch = 0;
+            while (buffer[mismatch] == (uint8_t)payload[offset + mismatch])
+                ++mismatch;
+            file.close();
+            // Report only the position, never credential contents.
+            return save_failed("%s content mismatch at byte %u",
+                               CONFIG_TEMP, (unsigned)(offset + mismatch));
+        }
+        offset += count;
+    }
+    file.close();
+    return true;
+}
+
+// The caller holds the config lock. Keep the previous file until the new
+// document has been written completely and checked by reading it back.
+static bool write_config(const JsonDocument &doc)
+{
+    _saveError[0] = 0;
+    if (!fs_ready())
+        return save_failed("Filesystem not mounted");
+
+    String payload;
+    size_t expected = measureJsonPretty(doc);
+    if (doc.overflowed() || !payload.reserve(expected) ||
+        serializeJsonPretty(doc, payload) != expected)
+        return save_failed("Could not serialize the complete configuration");
+
+    _log("Saving config (%u bytes, %u WiFi networks)\n",
+         (unsigned)expected, (unsigned)doc["wifi"]["networks"].size());
+    File file = gfs()->open(CONFIG_TEMP, "w");
+    if (!file)
+        return save_failed("Cannot open %s for writing", CONFIG_TEMP);
+
+    size_t written = file.write((const uint8_t *)payload.c_str(), payload.length());
+    file.flush();
+    file.close();
+
+    if (written != expected)
+    {
+        gfs()->remove(CONFIG_TEMP);
+        return save_failed("Short write: expected %u, wrote %u bytes",
+                           (unsigned)expected, (unsigned)written);
+    }
+    if (!verify_config_bytes(payload))
+    {
+        gfs()->remove(CONFIG_TEMP);
         return false;
     }
 
-    config_lock();
-
-    bool ok = false;
-    File file = gfs()->open(CONFIG_FILE, "w");
-    if (file)
+    JsonDocument verified;
+    if (gfs()->exists(CONFIG_FILE))
     {
-        ok = serializeJsonPretty(_config, file) > 0;
-        file.close();
+        // Never replace a recovered backup with an unreadable primary file.
+        if (read_config(CONFIG_FILE, verified))
+        {
+            if (gfs()->exists(CONFIG_BACKUP) && !gfs()->remove(CONFIG_BACKUP))
+                return save_failed("Cannot remove previous backup");
+            if (!gfs()->rename(CONFIG_FILE, CONFIG_BACKUP))
+                return save_failed("Cannot move previous config to backup");
+        }
+        else if (!gfs()->remove(CONFIG_FILE))
+            return save_failed("Cannot remove unreadable config");
     }
 
+    if (!gfs()->rename(CONFIG_TEMP, CONFIG_FILE))
+    {
+        return save_failed("Cannot commit config; previous config kept in backup");
+    }
+
+    _log("Config saved and verified\n");
+    return true;
+}
+
+bool config_save()
+{
+    config_lock();
+    bool ok = write_config(_config);
     config_unlock();
+    if (!ok)
+        _log("Failed to save config\n");
+    return ok;
+}
 
+bool config_apply(JsonDocument &candidate)
+{
+    config_lock();
+    bool ok = write_config(candidate);
     if (ok)
-        _log("Config saved\n");
-    else
-        _log("Failed to write %s\n", CONFIG_FILE);
-
+        swap(_config, candidate);
+    config_unlock();
     return ok;
 }
 

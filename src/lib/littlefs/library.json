@@ -1,0 +1,12 @@
+{
+  "name": "littlefs",
+  "version": "2.11.2",
+  "description": "littlefs v2.11.2 from https://github.com/littlefs-project/littlefs, with public symbols renamed in src/lfs_port.h so it can link beside the Arduino core's prebuilt copy.",
+  "license": "BSD-3-Clause",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "srcDir": "src",
+    "includeDir": "src"
+  }
+}

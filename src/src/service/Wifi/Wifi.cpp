@@ -4,6 +4,7 @@
 #include "service/Time/Ntp.h"
 
 #include <WiFi.h>
+#include <esp_mac.h>
 
 // how long to wait for one network before moving to the next
 #define STA_TIMEOUT_MS 10000
@@ -16,6 +17,8 @@
 #define OFFLINE_RESTART_MS (60UL * 60UL * 1000UL)
 
 static unsigned long _offlineSince = 0;
+static bool _reconnectPending = false;
+static unsigned long _reconnectRequestedAt = 0;
 
 static void say(const char *message)
 {
@@ -46,8 +49,13 @@ static void publish_state(bool connected, bool apMode, const IPAddress &ip, cons
 // working: MacroPad-<last two bytes of the MAC>.
 static String ap_name()
 {
-    uint8_t mac[6];
-    WiFi.macAddress(mac);
+    // The station interface does not exist yet on a first boot in AP mode.
+    uint8_t mac[6] = {};
+    if (esp_read_mac(mac, ESP_MAC_WIFI_STA) != ESP_OK)
+    {
+        _log("WiFi: could not read device MAC\n");
+        return String("MacroPad");
+    }
 
     char name[24];
     snprintf(name, sizeof(name), "MacroPad-%02X%02X", mac[4], mac[5]);
@@ -56,12 +64,22 @@ static String ap_name()
 
 static void start_ap()
 {
+    _log("WiFi: preparing access point\n");
     String name = ap_name();
 
-    WiFi.mode(WIFI_AP);
+    _log("WiFi: starting access point '%s'\n", name.c_str());
+    if (!WiFi.mode(WIFI_AP))
+    {
+        say("access point mode failed");
+        return;
+    }
     // open network on purpose: the pad has no keyboard to type a password
     // with, and the AP only exists to hand over credentials
-    WiFi.softAP(name.c_str());
+    if (!WiFi.softAP(name.c_str()))
+    {
+        say("access point start failed");
+        return;
+    }
 
     AppStatus &app = status();
     strlcpy(app.apName, name.c_str(), sizeof(app.apName));
@@ -85,6 +103,7 @@ static bool connect_to(const String &ssid, const String &password)
 
     if (WiFi.status() != WL_CONNECTED)
     {
+        _log("WiFi: connection to '%s' failed (status %d)\n", ssid.c_str(), (int)WiFi.status());
         WiFi.disconnect();
         return false;
     }
@@ -114,7 +133,9 @@ static bool start_sta()
     String passwords[WIFI_COUNT];
     for (int i = 0; i < count; i++)
     {
+        // a space pasted along with the name would never match the scan
         ssids[i] = networks[i]["ssid"].as<String>();
+        ssids[i].trim();
         passwords[i] = networks[i]["password"].as<String>();
     }
     config_unlock();
@@ -125,12 +146,30 @@ static bool start_sta()
         return false;
     }
 
-    WiFi.mode(WIFI_STA);
+    // Keep the configuration AP available while trying new credentials.
+    if (!WiFi.mode(status().apMode ? WIFI_AP_STA : WIFI_STA))
+    {
+        say("station mode failed");
+        return false;
+    }
     WiFi.setSleep(true); // the pad is idle most of the time
 
     say("scanning");
     int found = WiFi.scanNetworks();
+    if (found < 0)
+    {
+        say("scan failed");
+        WiFi.scanDelete();
+        return false;
+    }
 
+    // the pad only sees 2.4 GHz networks; listing what it found makes a
+    // 5 GHz-only or misspelled saved network obvious
+    _log("WiFi: %d networks found\n", found);
+    for (int j = 0; j < found; j++)
+        _log("  '%s' %d dBm\n", WiFi.SSID(j).c_str(), (int)WiFi.RSSI(j));
+
+    bool attempted = false;
     for (int i = 0; i < count; i++)
     {
         if (ssids[i].length() == 0)
@@ -147,8 +186,12 @@ static bool start_sta()
         }
 
         if (!inRange)
+        {
+            _log("WiFi: saved network '%s' not in scan\n", ssids[i].c_str());
             continue;
+        }
 
+        attempted = true;
         if (connect_to(ssids[i], passwords[i]))
         {
             WiFi.scanDelete();
@@ -157,7 +200,7 @@ static bool start_sta()
     }
 
     WiFi.scanDelete();
-    say("no saved network in range");
+    say(attempted ? "saved networks did not connect" : "no saved network in range");
     return false;
 }
 
@@ -172,16 +215,40 @@ void wifi_setup()
 
 void wifi_reconnect()
 {
-    WiFi.softAPdisconnect(true);
-    WiFi.disconnect(true);
+    bool hadAp = status().apMode;
+    // in AP-only mode there is no station to disconnect, and asking logs
+    // "STA disconnect failed"
+    if (WiFi.getMode() & WIFI_STA)
+        WiFi.disconnect(false);
+    publish_state(false, hadAp, hadAp ? WiFi.softAPIP() : IPAddress(0, 0, 0, 0), "");
     delay(100);
 
-    if (!start_sta())
+    if (start_sta())
+    {
+        if (hadAp)
+            WiFi.softAPdisconnect(true);
+    }
+    else if (!hadAp)
         start_ap();
+}
+
+void wifi_request_reconnect()
+{
+    _reconnectRequestedAt = millis();
+    _reconnectPending = true;
+    _log("WiFi: reconnect scheduled\n");
 }
 
 void wifi_loop()
 {
+    // Let the HTTP response reach the browser before changing networks.
+    if (_reconnectPending && millis() - _reconnectRequestedAt >= 1000)
+    {
+        _reconnectPending = false;
+        wifi_reconnect();
+        return;
+    }
+
     static unsigned long lastCheck = 0;
     if (millis() - lastCheck < 2000)
         return;
@@ -214,10 +281,7 @@ void wifi_loop()
         if (WiFi.softAPgetStationNum() > 0)
             return;
 
-        if (start_sta())
-            WiFi.softAPdisconnect(true);
-        else
-            start_ap();
+        wifi_reconnect();
 
         return;
     }

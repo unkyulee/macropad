@@ -200,6 +200,13 @@ void display_next_screen()
 
 void display_reload()
 {
+    // Saving settings during provisioning must keep the AP instructions up.
+    if (_slot < 0)
+    {
+        activate(-1);
+        return;
+    }
+
     // re-enter the current slot so it picks up its new settings, or find
     // the first enabled one if the current slot was just turned off
     if (_slot >= 0 && slot_enabled(_slot))

@@ -8,6 +8,7 @@
 // stays put because it is holding the instructions the user needs.
 // See ClockScreen: cleared by setup() so a revisit repaints.
 static bool _wasAp = false;
+static bool _apPainted = false;
 static char _lastMessage[48] = "";
 
 void InitScreen_setup(int slot)
@@ -15,6 +16,7 @@ void InitScreen_setup(int slot)
     (void)slot;
 
     _wasAp = false;
+    _apPainted = false;
     _lastMessage[0] = 0;
 
     TFT_eSPI &tft = display_tft();
@@ -37,12 +39,16 @@ void InitScreen_render(int slot)
     if (app.apMode != _wasAp)
     {
         _wasAp = app.apMode;
+        _apPainted = false;
         _lastMessage[0] = 0;
         display_clear_body();
     }
 
     if (app.apMode)
     {
+        if (_apPainted)
+            return;
+
         tft.setTextColor(TFT_ORANGE, TFT_BLACK);
         tft.drawString("No known network", 20, BODY_TOP + 6, 4);
 
@@ -57,6 +63,7 @@ void InitScreen_render(int slot)
 
         tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
         tft.drawString("Restarts hourly until connected", 20, BODY_TOP + 164, 2);
+        _apPainted = true;
         return;
     }
 

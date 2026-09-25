@@ -5,35 +5,22 @@
 
 #include <WebServer.h>
 #include <WiFi.h>
-#include <FFat.h>
-#include "app/FileSystem/FileSystemFAT.h"
+#include "app/FileSystem/FileSystemLFS.h"
 
 static WebServer server(80);
 
-// The UI is uploaded from data/ with `pio run -t uploadfs` and served
-// straight off the filesystem, alongside config.json and the GIF uploads.
-#define INDEX_FILE "/index.html"
+// The UI is data/index.html, built into the firmware by
+// board_build.embed_txtfiles, so it is always present and updates with the
+// firmware. The storage partition cannot be populated with uploadfs (see
+// partitions_16mb.csv), and serving it from there would leave a blank page
+// after every format. embed_txtfiles appends a NUL, hence the - 1.
+extern const char index_html_start[] asm("_binary_data_index_html_start");
+extern const char index_html_end[] asm("_binary_data_index_html_end");
 
 static void handle_root()
 {
     server.sendHeader("Cache-Control", "no-cache");
-
-    if (fs_ready() && gfs()->exists(INDEX_FILE))
-    {
-        File file = gfs()->open(INDEX_FILE, "r");
-        if (file)
-        {
-            server.streamFile(file, "text/html");
-            file.close();
-            return;
-        }
-    }
-
-    // nothing to serve: the API still works, so say what is missing rather
-    // than leaving a blank page
-    server.send(200, "text/plain",
-                "index.html is not on the filesystem.\n"
-                "Upload it with: pio run -t uploadfs\n");
+    server.send_P(200, "text/html", index_html_start, index_html_end - index_html_start - 1);
 }
 
 static void handle_status()
@@ -66,10 +53,9 @@ static void handle_status()
     doc["storage"]["mounted"] = fs_ready();
     if (fs_ready())
     {
-        doc["storage"]["total"] = fatfs()->totalBytes();
-        doc["storage"]["free"] = fatfs()->freeBytes();
+        doc["storage"]["total"] = storage()->totalBytes();
+        doc["storage"]["free"] = storage()->freeBytes();
         doc["storage"]["config"] = gfs()->exists("/config.json");
-        doc["storage"]["ui"] = gfs()->exists(INDEX_FILE);
     }
 
     String out;
@@ -111,13 +97,19 @@ static void handle_config_post()
     }
 
     config_lock();
-    config().clear();
-    config().set(incoming.as<JsonObjectConst>());
+    bool wifiChanged = config()["wifi"].as<JsonVariantConst>() !=
+                       incoming["wifi"].as<JsonVariantConst>();
     config_unlock();
+    bool reconnectWifi = wifiChanged ||
+                         (!status().wifiConnected && incoming["wifi"]["networks"].size() > 0);
 
-    if (!config_save())
+    if (!config_apply(incoming))
     {
-        server.send(500, "application/json", "{\"error\":\"save failed\"}");
+        JsonDocument failure;
+        failure["error"] = config_save_error();
+        String out;
+        serializeJson(failure, out);
+        server.send(500, "application/json", out);
         return;
     }
 
@@ -125,12 +117,14 @@ static void handle_config_post()
     // than touching its cache from this task
     status().configReload = true;
 
-    server.send(200, "application/json", "{\"ok\":true}");
+    server.send(200, "application/json", reconnectWifi ?
+                "{\"ok\":true,\"wifiReconnect\":true}" : "{\"ok\":true,\"wifiReconnect\":false}");
+    if (reconnectWifi)
+        wifi_request_reconnect();
 }
 
 // ---- GIF storage ------------------------------------------------------
-// Uploads land in /gif so the screen config can point at them by path and
-// the mass storage view later has somewhere obvious to drop files.
+// Uploads land in /gif so the screen config can point at them by path.
 #define GIF_DIR "/gif"
 
 static File _upload;
@@ -142,7 +136,7 @@ static void handle_gif_list()
 
     if (fs_ready())
     {
-        File dir = fatfs()->openDir(GIF_DIR);
+        File dir = storage()->openDir(GIF_DIR);
         if (dir && dir.isDirectory())
         {
             File entry = dir.openNextFile();
@@ -176,7 +170,7 @@ static void handle_gif_upload_data()
         if (!fs_ready())
             return;
 
-        fatfs()->mkdir(GIF_DIR);
+        storage()->mkdir(GIF_DIR);
 
         String name = upload.filename;
         int slash = name.lastIndexOf('/');
@@ -263,9 +257,7 @@ static void handle_wifi_connect()
 {
     server.send(200, "application/json", "{\"ok\":true}");
 
-    // the response has to go out before the radio drops
-    delay(200);
-    wifi_reconnect();
+    wifi_request_reconnect();
 }
 
 static void handle_reboot()
@@ -291,7 +283,7 @@ void webui_setup()
 
     // anything else (css, js, images) comes straight off the filesystem
     if (fs_ready())
-        server.serveStatic("/", FFat, "/");
+        server.serveStatic("/", storage()->fs(), "/");
 
     server.onNotFound([]()
                       { server.send(404, "application/json", "{\"error\":\"not found\"}"); });

@@ -1,6 +1,6 @@
 #include "app.h"
 #include "Config/Config.h"
-#include "FileSystem/FileSystemFAT.h"
+#include "FileSystem/FileSystemLFS.h"
 
 // app state storage
 AppStatus _status;
@@ -11,8 +11,9 @@ AppStatus &status()
 
 // One filesystem for everything: the web UI uploaded from data/,
 // config.json, and GIF uploads. The partition label has to match
-// partitions_16mb.csv.
-static FileSystemFAT _storage("storage");
+// partitions_16mb.csv, and the partition has to sit on 64 KB boundaries:
+// see FileSystemLFS.h for why the blocks are that large.
+static FileSystemLFS _storage("storage");
 static bool _fsReady = false;
 
 FileSystem *gfs()
@@ -20,7 +21,7 @@ FileSystem *gfs()
     return &_storage;
 }
 
-FileSystemFAT *fatfs()
+FileSystemLFS *storage()
 {
     return &_storage;
 }

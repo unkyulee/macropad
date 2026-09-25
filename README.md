@@ -127,7 +127,8 @@ Eleven wires total, one of which is optional.
 | `GPIO  8`| `T_IRQ`       | Pen interrupt      | Optional — TFT_eSPI polls instead. Wire it only for wake-on-touch |
 
 The module's **SD card header is left unconnected**. Firmware storage is the internal
-`storage` FAT partition (`FFat`), exposed to the host over USB MSC.
+`storage` littlefs partition, formatted with 64 KB blocks to match the
+S25FL128S flash. Files go on it through the web UI.
 
 
 ## ESP32-S3 and KEYPAD

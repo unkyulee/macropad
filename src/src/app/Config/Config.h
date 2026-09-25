@@ -25,6 +25,10 @@ void config_setup();
 bool config_load();
 bool config_save();
 
+// Persist a candidate before replacing the live document; swaps on success.
+bool config_apply(JsonDocument &candidate);
+const char *config_save_error();
+
 // Replace everything with the factory defaults and write them out. The
 // stored file wins over the built-in defaults on every boot, so this is
 // the only way to pick up a changed default keymap.
