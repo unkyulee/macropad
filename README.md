@@ -93,7 +93,6 @@ Eleven wires total, one of which is optional.
    ========                              ==============
 
    3V3      ───────────────────────────  VCC
-                 └─────────────────────  LED (Back light)
    GND      ───────────────────────────  GND
 
    GPIO 12  ──┬────────────────────────  SCK     ┐
