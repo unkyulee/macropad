@@ -363,6 +363,8 @@ void ble_setup()
 
     bleKeyboard.begin(name.c_str());
 
+    strlcpy(status().bleName, name.c_str(), sizeof(status().bleName));
+
     _log("BLE keyboard advertising as '%s'\n", name.c_str());
 }
 
@@ -394,6 +396,15 @@ void ble_loop()
         // otherwise ride along in every report after the host reconnects
         if (!connected)
             bleKeyboard.releaseAll();
+    }
+
+    // no bond and nobody attached means a fresh pad, so the display walks
+    // the user through pairing
+    bool needsPairing = !connected && NimBLEDevice::getNumBonds() == 0;
+    if (needsPairing != app.bleNeedsPairing)
+    {
+        app.bleNeedsPairing = needsPairing;
+        app.dirty = true;
     }
 
     // lock state is only meaningful while a host is attached to report it

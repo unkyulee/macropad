@@ -35,6 +35,9 @@ struct AppStatus
 
     // bluetooth
     bool bleConnected = false;
+    // no host has ever bonded and none is connected: the pad needs pairing
+    bool bleNeedsPairing = false;
+    char bleName[32] = "";
 
     // lock state, as reported by the connected host over the HID LED report
     bool numLock = false;

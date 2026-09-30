@@ -3,20 +3,16 @@
 #include "app/app.h"
 
 // Shown while the network task works through the saved networks. Once a
-// connection is up (or the access point is running) display.cpp moves on
-// to the first configured screen - except in AP mode, where this screen
-// stays put because it is holding the instructions the user needs.
+// connection is up, or the pad falls back to its access point, display.cpp
+// moves on to the first configured screen. The AP details are on the info
+// screen, so a fresh pad goes straight to the clock instead of waiting here.
 // See ClockScreen: cleared by setup() so a revisit repaints.
-static bool _wasAp = false;
-static bool _apPainted = false;
 static char _lastMessage[48] = "";
 
 void InitScreen_setup(int slot)
 {
     (void)slot;
 
-    _wasAp = false;
-    _apPainted = false;
     _lastMessage[0] = 0;
 
     TFT_eSPI &tft = display_tft();
@@ -33,39 +29,6 @@ void InitScreen_render(int slot)
 
     TFT_eSPI &tft = display_tft();
     AppStatus &app = status();
-
-    // repaint the whole body when switching into AP mode, the layouts
-    // have nothing in common
-    if (app.apMode != _wasAp)
-    {
-        _wasAp = app.apMode;
-        _apPainted = false;
-        _lastMessage[0] = 0;
-        display_clear_body();
-    }
-
-    if (app.apMode)
-    {
-        if (_apPainted)
-            return;
-
-        tft.setTextColor(TFT_ORANGE, TFT_BLACK);
-        tft.drawString("No known network", 20, BODY_TOP + 6, 4);
-
-        tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.drawString("Join this WiFi:", 20, BODY_TOP + 44, 2);
-        tft.drawString(app.apName, 20, BODY_TOP + 62, 4);
-
-        tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.drawString("Then open:", 20, BODY_TOP + 104, 2);
-        tft.setTextColor(TFT_CYAN, TFT_BLACK);
-        tft.drawString(String("http://") + app.ip, 20, BODY_TOP + 122, 4);
-
-        tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        tft.drawString("Restarts hourly until connected", 20, BODY_TOP + 164, 2);
-        _apPainted = true;
-        return;
-    }
 
     // connecting: only the status line changes
     if (strcmp(_lastMessage, app.wifiMessage) != 0)

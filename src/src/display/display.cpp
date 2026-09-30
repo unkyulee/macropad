@@ -200,7 +200,7 @@ void display_next_screen()
 
 void display_reload()
 {
-    // Saving settings during provisioning must keep the AP instructions up.
+    // still booting: stay on the init screen until the network settles
     if (_slot < 0)
     {
         activate(-1);
@@ -233,9 +233,11 @@ void display_loop()
 {
     AppStatus &app = status();
 
-    // leave the init screen once the network task has settled. In AP mode
-    // it stays: the pairing instructions are the useful thing to show.
-    if (app.booting && !app.apMode && app.wifiConnected)
+    // leave the init screen once the network task has settled, either on a
+    // saved network or by falling back to the access point. A fresh pad has
+    // no network yet, and it should still come up on the clock rather than
+    // sit on the WiFi instructions; those stay reachable on the info screen.
+    if (app.booting && (app.wifiConnected || app.apMode))
     {
         app.booting = false;
         display_next_screen();
