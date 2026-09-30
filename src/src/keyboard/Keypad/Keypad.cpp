@@ -95,10 +95,7 @@ void keypad_loop()
         if (index == keypad_screen_key())
         {
             if (app.pressed)
-            {
-                app.booting = false;
                 display_next_screen();
-            }
             continue;
         }
 

@@ -3,7 +3,6 @@
 #include "app/Config/Config.h"
 
 #include "Screens/Screen.h"
-#include "Screens/InitScreen.h"
 #include "Screens/ClockScreen.h"
 #include "Screens/KeymapScreen.h"
 #include "Screens/GifScreen.h"
@@ -16,7 +15,6 @@
 // pins are defined in platformio.ini
 static TFT_eSPI tft = TFT_eSPI();
 
-static const Screen INIT_SCREEN = {InitScreen_setup, InitScreen_render, InitScreen_key};
 static const Screen CLOCK_SCREEN = {ClockScreen_setup, ClockScreen_render, ClockScreen_key};
 static const Screen KEYMAP_SCREEN = {KeymapScreen_setup, KeymapScreen_render, KeymapScreen_key};
 static const Screen GIF_SCREEN = {GifScreen_setup, GifScreen_render, GifScreen_key};
@@ -29,7 +27,9 @@ static const Screen INFO_SCREEN = {InfoScreen_setup, InfoScreen_render, InfoScre
 #define INFO_SLOT SCREEN_COUNT
 #define CYCLE_LENGTH (SCREEN_COUNT + 1)
 
-static const Screen *_active = &INIT_SCREEN;
+// set by display_setup(), which opens the first enabled screen straight
+// away: WiFi connects in the background, so the keys work from power up
+static const Screen *_active = NULL;
 static int _slot = -1;
 
 TFT_eSPI &display_tft()
@@ -140,12 +140,7 @@ static void activate(int slot)
     _slot = slot;
     status().screen = slot;
 
-    if (slot < 0)
-    {
-        _active = &INIT_SCREEN;
-        strlcpy(_title, "STARTING UP", sizeof(_title));
-    }
-    else if (slot == INFO_SLOT)
+    if (slot == INFO_SLOT)
     {
         _active = &INFO_SCREEN;
         strlcpy(_title, "info", sizeof(_title));
@@ -200,16 +195,9 @@ void display_next_screen()
 
 void display_reload()
 {
-    // still booting: stay on the init screen until the network settles
-    if (_slot < 0)
-    {
-        activate(-1);
-        return;
-    }
-
     // re-enter the current slot so it picks up its new settings, or find
     // the first enabled one if the current slot was just turned off
-    if (_slot >= 0 && slot_enabled(_slot))
+    if (slot_enabled(_slot))
         activate(_slot);
     else
     {
@@ -226,22 +214,12 @@ void display_setup()
     tft.setRotation(1);
     tft.fillScreen(TFT_BLACK);
 
-    activate(-1);
+    display_next_screen();
 }
 
 void display_loop()
 {
     AppStatus &app = status();
-
-    // leave the init screen once the network task has settled, either on a
-    // saved network or by falling back to the access point. A fresh pad has
-    // no network yet, and it should still come up on the clock rather than
-    // sit on the WiFi instructions; those stay reachable on the info screen.
-    if (app.booting && (app.wifiConnected || app.apMode))
-    {
-        app.booting = false;
-        display_next_screen();
-    }
 
     if (app.dirty)
     {

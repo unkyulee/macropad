@@ -29,9 +29,8 @@ struct AppStatus
     char apName[24] = "";
     char wifiMessage[48] = "starting";
 
-    // active screen slot, or -1 while the init screen owns the display
+    // active screen slot, -1 until the display has picked the first one
     int screen = -1;
-    bool booting = true;
 
     // bluetooth
     bool bleConnected = false;
